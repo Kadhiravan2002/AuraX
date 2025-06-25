@@ -1,27 +1,54 @@
+
+import { useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import AuthPage from '@/components/auth/AuthPage';
+import Dashboard from '@/components/Dashboard';
+import HealthLogForm from '@/components/HealthLogForm';
 import { useState } from 'react';
-import LandingPage from '../components/LandingPage';
-import Dashboard from '../components/Dashboard';
-import HealthLogForm from '../components/HealthLogForm';
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'landing' | 'dashboard' | 'log'>('landing');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const { user, session, loading, signOut } = useAuth();
+  const [currentView, setCurrentView] = useState<'dashboard' | 'log'>('dashboard');
 
-  const handleLogin = (userData: { name: string; email: string }) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    setCurrentView('dashboard');
-  };
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleLogout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    setCurrentView('landing');
-  };
-
-  if (!isAuthenticated) {
-    return <LandingPage onLogin={handleLogin} />;
+  // Show auth page if user is not authenticated or email not confirmed
+  if (!user || !session || (user && !user.email_confirmed_at)) {
+    if (user && !user.email_confirmed_at) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                📧
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+              <p className="text-gray-600">
+                We've sent a verification link to <strong>{user.email}</strong>. 
+                Please click the link in your email to verify your account and continue.
+              </p>
+            </div>
+            <button
+              onClick={signOut}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Use a different email
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return <AuthPage />;
   }
 
   return (
@@ -35,9 +62,9 @@ const Index = () => {
                   <img 
                     src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
                     alt="AuraX Logo" 
-                    className="h-8 w-8 rounded-lg shadow-md bg-gradient-to-br from-cyan-100 to-purple-100 p-1 border border-white/30"
+                    className="h-8 w-8 rounded-xl shadow-lg bg-gradient-to-br from-cyan-100 to-purple-100 p-1.5 border border-white/30 backdrop-blur-sm"
                   />
-                  <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-400/10 to-purple-400/10 blur-sm -z-10"></div>
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-cyan-400/20 to-purple-400/20 blur-sm -z-10"></div>
                 </div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
                   AuraX
@@ -69,9 +96,11 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center">
-              <span className="text-sm text-gray-700 mr-4">Welcome, {user?.name}</span>
+              <span className="text-sm text-gray-700 mr-4">
+                Welcome, {user.user_metadata?.full_name || user.email?.split('@')[0]}
+              </span>
               <button
-                onClick={handleLogout}
+                onClick={signOut}
                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Logout
@@ -83,7 +112,7 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {currentView === 'dashboard' && <Dashboard />}
-        {currentView === 'log' && <HealthLogForm />}
+        {currentView === 'log' && <lov-HealthLogForm />}
       </main>
     </div>
   );
