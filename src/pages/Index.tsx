@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import LandingPage from '../components/LandingPage';
 import Dashboard from '../components/Dashboard';
@@ -32,11 +31,14 @@ const Index = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center space-x-3">
-                <img 
-                  src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
-                  alt="AuraX Logo" 
-                  className="h-8 w-8"
-                />
+                <div className="relative">
+                  <img 
+                    src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
+                    alt="AuraX Logo" 
+                    className="h-8 w-8 rounded-lg shadow-md bg-gradient-to-br from-cyan-100 to-purple-100 p-1 border border-white/30"
+                  />
+                  <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-400/10 to-purple-400/10 blur-sm -z-10"></div>
+                </div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
                   AuraX
                 </h1>

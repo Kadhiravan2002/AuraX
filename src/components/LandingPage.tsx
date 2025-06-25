@@ -33,11 +33,14 @@ const LandingPage = ({ onLogin }: LandingPageProps) => {
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="flex items-center space-x-4 mb-6">
-              <img 
-                src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
-                alt="AuraX Logo" 
-                className="h-16 w-16"
-              />
+              <div className="relative">
+                <img 
+                  src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
+                  alt="AuraX Logo" 
+                  className="h-16 w-16 rounded-xl shadow-lg bg-gradient-to-br from-cyan-100 to-purple-100 p-2 border border-white/20 backdrop-blur-sm"
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-cyan-400/20 to-purple-400/20 blur-sm -z-10"></div>
+              </div>
               <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
                 AuraX
               </h1>
