@@ -32,11 +32,21 @@ const LandingPage = ({ onLogin }: LandingPageProps) => {
         {/* Left Side - Hero Content */}
         <div className="space-y-6">
           <div className="space-y-4">
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
+            <div className="flex items-center space-x-4 mb-6">
+              <img 
+                src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
+                alt="AuraX Logo" 
+                className="h-16 w-16"
+              />
+              <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
+                AuraX
+              </h1>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
               Your Personal
               <span className="text-blue-600"> Health</span>
               <span className="text-green-600"> Tracker</span>
-            </h1>
+            </h2>
             <p className="text-xl text-gray-600 leading-relaxed">
               Track your daily health metrics and get personalized AI-powered suggestions to improve your wellness journey.
             </p>
@@ -126,7 +136,7 @@ const LandingPage = ({ onLogin }: LandingPageProps) => {
                 </div>
                 <Button 
                   type="submit" 
-                  className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-medium"
+                  className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-medium"
                 >
                   {isLogin ? 'Sign In' : 'Create Account'}
                 </Button>

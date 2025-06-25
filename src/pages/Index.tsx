@@ -31,8 +31,15 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <h1 className="text-xl font-bold text-gray-900">HealthTracker</h1>
+              <div className="flex-shrink-0 flex items-center space-x-3">
+                <img 
+                  src="/lovable-uploads/809c6650-cb5d-4f7c-a284-48e1fd16dbd7.png" 
+                  alt="AuraX Logo" 
+                  className="h-8 w-8"
+                />
+                <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
+                  AuraX
+                </h1>
               </div>
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
