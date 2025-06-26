@@ -62,7 +62,21 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
         return;
       }
 
-      setSubscription(data || null);
+      if (data) {
+        // Cast the data to match our Subscription interface
+        const typedSubscription: Subscription = {
+          id: data.id,
+          plan: data.plan as 'free' | 'quarterly' | 'halfyearly' | 'annual',
+          payment_status: data.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
+          start_date: data.start_date,
+          end_date: data.end_date,
+          stripe_customer_id: data.stripe_customer_id,
+          stripe_subscription_id: data.stripe_subscription_id
+        };
+        setSubscription(typedSubscription);
+      } else {
+        setSubscription(null);
+      }
     } catch (error) {
       console.error('Error refreshing subscription:', error);
     } finally {
