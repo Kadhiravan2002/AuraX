@@ -2,9 +2,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription } from '@/hooks/useSubscription';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 const BillingSuccess = () => {
   const navigate = useNavigate();
@@ -16,38 +16,31 @@ const BillingSuccess = () => {
   }, [refreshSubscription]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md text-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+      <Card className="max-w-md w-full text-center">
         <CardHeader>
           <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
-          <CardTitle className="text-2xl text-green-700">Payment Successful!</CardTitle>
-          <CardDescription>
-            Welcome to AuraX Premium! You now have access to all premium features.
-          </CardDescription>
+          <CardTitle className="text-2xl text-gray-900">Payment Successful!</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-gray-600">
-            Your subscription is now active. You can start exploring advanced health analytics, 
-            export your data, and enjoy personalized AI recommendations.
+            Thank you for subscribing to AuraX Premium! Your subscription is now active and you have access to all premium features.
           </p>
-          
           <div className="space-y-2">
             <Button 
-              onClick={() => navigate('/')}
-              className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white"
+              onClick={() => navigate('/')} 
+              className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700"
             >
               Go to Dashboard
-              <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
-            
             <Button 
+              variant="outline" 
               onClick={() => navigate('/billing')}
-              variant="outline"
               className="w-full"
             >
-              Manage Subscription
+              View Billing Details
             </Button>
           </div>
         </CardContent>
