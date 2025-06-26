@@ -1,13 +1,19 @@
 
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubscription } from '@/hooks/useSubscription';
 import AuthPage from '@/components/auth/AuthPage';
 import Dashboard from '@/components/Dashboard';
 import HealthLogForm from '@/components/HealthLogForm';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { Crown, Settings } from 'lucide-react';
 
 const Index = () => {
   const { user, session, loading, signOut } = useAuth();
+  const { subscription } = useSubscription();
+  const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<'dashboard' | 'log'>('dashboard');
 
   // Show loading while checking authentication
@@ -51,6 +57,8 @@ const Index = () => {
     return <AuthPage />;
   }
 
+  const isPremium = subscription?.payment_status === 'active' && subscription?.plan !== 'free';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       <nav className="bg-white shadow-sm border-b">
@@ -66,9 +74,17 @@ const Index = () => {
                   />
                   <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-cyan-400/20 to-purple-400/20 blur-sm -z-10"></div>
                 </div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
-                  AuraX
-                </h1>
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">
+                    AuraX
+                  </h1>
+                  {isPremium && (
+                    <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs">
+                      <Crown className="w-3 h-3 mr-1" />
+                      Premium
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
@@ -92,11 +108,28 @@ const Index = () => {
                   >
                     Log Health Data
                   </button>
+                  <button
+                    onClick={() => navigate('/billing')}
+                    className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium flex items-center"
+                  >
+                    <Settings className="w-4 h-4 mr-1" />
+                    Billing
+                  </button>
                 </div>
               </div>
             </div>
-            <div className="flex items-center">
-              <span className="text-sm text-gray-700 mr-4">
+            <div className="flex items-center space-x-4">
+              {subscription && (
+                <Badge 
+                  variant="secondary" 
+                  className={`text-xs ${
+                    isPremium ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)} Plan
+                </Badge>
+              )}
+              <span className="text-sm text-gray-700">
                 Welcome, {user.user_metadata?.full_name || user.email?.split('@')[0]}
               </span>
               <button
