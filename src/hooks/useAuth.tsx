@@ -54,7 +54,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    // Fixed: Use current domain for email verification redirect
+    const currentDomain = window.location.origin;
+    const redirectUrl = `${currentDomain}/`;
     
     const { error } = await supabase.auth.signUp({
       email,
@@ -82,9 +84,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const resendConfirmation = async (email: string) => {
+    const currentDomain = window.location.origin;
+    const redirectUrl = `${currentDomain}/`;
+    
     const { error } = await supabase.auth.resend({
       type: 'signup',
-      email
+      email,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
     });
     
     return { error };

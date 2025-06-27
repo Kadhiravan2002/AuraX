@@ -49,22 +49,6 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     }
 
     try {
-      // Bypass subscription check for test email
-      if (user.email === 'spidey0001k@gmail.com') {
-        const testSubscription: Subscription = {
-          id: 'test-subscription',
-          plan: 'annual',
-          payment_status: 'active',
-          start_date: new Date().toISOString(),
-          end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
-          stripe_customer_id: null,
-          stripe_subscription_id: null
-        };
-        setSubscription(testSubscription);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')

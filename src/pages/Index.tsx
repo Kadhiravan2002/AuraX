@@ -2,19 +2,22 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
+import { usePremiumFeatures } from '@/hooks/usePremiumFeatures';
 import AuthPage from '@/components/auth/AuthPage';
 import Dashboard from '@/components/Dashboard';
 import HealthLogForm from '@/components/HealthLogForm';
+import CSVUpload from '@/components/CSVUpload';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import { Crown, Settings } from 'lucide-react';
+import { Crown, Settings, Upload } from 'lucide-react';
 
 const Index = () => {
   const { user, session, loading, signOut } = useAuth();
   const { subscription } = useSubscription();
+  const { isPremium, checkFeatureAccess } = usePremiumFeatures();
   const navigate = useNavigate();
-  const [currentView, setCurrentView] = useState<'dashboard' | 'log'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'log' | 'csv'>('dashboard');
 
   // Show loading while checking authentication
   if (loading) {
@@ -57,8 +60,6 @@ const Index = () => {
     return <AuthPage />;
   }
 
-  const isPremium = subscription?.payment_status === 'active' && subscription?.plan !== 'free';
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       <nav className="bg-white shadow-sm border-b">
@@ -96,7 +97,7 @@ const Index = () => {
                         : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    Dashboard
+                    {checkFeatureAccess('fullDashboard') ? 'Dashboard' : 'Basic Dashboard'}
                   </button>
                   <button
                     onClick={() => setCurrentView('log')}
@@ -107,6 +108,20 @@ const Index = () => {
                     }`}
                   >
                     Log Health Data
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('csv')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
+                      currentView === 'csv'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4 mr-1" />
+                    CSV Upload
+                    {!checkFeatureAccess('csvUpload') && (
+                      <Crown className="w-3 h-3 ml-1 text-amber-500" />
+                    )}
                   </button>
                   <button
                     onClick={() => navigate('/billing')}
@@ -146,6 +161,7 @@ const Index = () => {
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {currentView === 'dashboard' && <Dashboard />}
         {currentView === 'log' && <HealthLogForm />}
+        {currentView === 'csv' && <CSVUpload />}
       </main>
     </div>
   );
