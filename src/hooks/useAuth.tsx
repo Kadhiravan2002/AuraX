@@ -1,7 +1,7 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { shouldGrantPremiumAccess } from '@/utils/premiumWhitelist';
 
 interface AuthContextType {
   user: User | null;
@@ -35,11 +35,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Auto-grant premium access for whitelisted users on login
+        if (event === 'SIGNED_IN' && session?.user?.email) {
+          const shouldGrant = shouldGrantPremiumAccess(session.user.email);
+          const currentMetadata = session.user.user_metadata || {};
+          
+          if (shouldGrant && !currentMetadata.isPremium) {
+            console.log('Granting premium access to whitelisted user:', session.user.email);
+            try {
+              await supabase.auth.updateUser({
+                data: { ...currentMetadata, isPremium: true }
+              });
+            } catch (error) {
+              console.error('Failed to update user metadata:', error);
+            }
+          }
+        }
       }
     );
 
