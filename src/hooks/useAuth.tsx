@@ -1,3 +1,4 @@
+
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    // Fixed: Use current domain for email verification redirect
+    // Use the current domain instead of localhost
     const currentDomain = window.location.origin;
     const redirectUrl = `${currentDomain}/`;
     

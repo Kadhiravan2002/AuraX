@@ -1,8 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import HealthChart from './HealthChart';
 import HealthScore from './HealthScore';
 import MLSuggestions from './MLSuggestions';
+import NewUserWelcome from './NewUserWelcome';
 
 interface HealthData {
   date: string;
@@ -14,9 +16,16 @@ interface HealthData {
   mood: string;
 }
 
-const Dashboard = () => {
+interface DashboardProps {
+  onStartCSVUpload?: () => void;
+  onStartManualEntry?: () => void;
+  userName?: string;
+}
+
+const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: DashboardProps) => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
+  const [isNewUser, setIsNewUser] = useState(false);
 
   const loadHealthData = () => {
     // Load existing data from localStorage
@@ -24,37 +33,13 @@ const Dashboard = () => {
     if (savedData) {
       const parsedData = JSON.parse(savedData);
       setHealthData(parsedData);
+      setIsNewUser(parsedData.length === 0);
     } else {
-      // Generate some sample data for demonstration
-      const sampleData = generateSampleData();
-      setHealthData(sampleData);
-      localStorage.setItem('healthData', JSON.stringify(sampleData));
+      // Don't generate sample data for new users
+      setHealthData([]);
+      setIsNewUser(true);
     }
   };
-
-  useEffect(() => {
-    loadHealthData();
-
-    // Listen for storage changes (when CSV data is uploaded)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'healthData' && e.newValue) {
-        setHealthData(JSON.parse(e.newValue));
-      }
-    };
-
-    // Listen for custom events (for same-tab updates)
-    const handleDataUpdate = () => {
-      loadHealthData();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('healthDataUpdated', handleDataUpdate);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('healthDataUpdated', handleDataUpdate);
-    };
-  }, []);
 
   const generateSampleData = (): HealthData[] => {
     const data = [];
@@ -73,6 +58,43 @@ const Dashboard = () => {
     }
     return data;
   };
+
+  useEffect(() => {
+    loadHealthData();
+
+    // Listen for storage changes (when CSV data is uploaded)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'healthData' && e.newValue) {
+        const newData = JSON.parse(e.newValue);
+        setHealthData(newData);
+        setIsNewUser(newData.length === 0);
+      }
+    };
+
+    // Listen for custom events (for same-tab updates)
+    const handleDataUpdate = () => {
+      loadHealthData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('healthDataUpdated', handleDataUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('healthDataUpdated', handleDataUpdate);
+    };
+  }, []);
+
+  // Show welcome screen for new users
+  if (isNewUser && userName) {
+    return (
+      <NewUserWelcome
+        userName={userName}
+        onStartCSVUpload={onStartCSVUpload || (() => {})}
+        onStartManualEntry={onStartManualEntry || (() => {})}
+      />
+    );
+  }
 
   const filteredData = healthData.slice(timeRange === 'week' ? -7 : -30);
   const latestData = healthData[healthData.length - 1];
@@ -150,7 +172,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-green-700">Steps</p>
-                <p className="text-lg font-bold text-green-900">{latestData?.steps.toLocaleString() || 0}</p>
+                <p className="text-lg font-bold text-green-900">{latestData?.steps?.toLocaleString() || 0}</p>
               </div>
             </div>
           </CardContent>

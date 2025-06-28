@@ -1,3 +1,4 @@
+
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -80,6 +81,16 @@ const Index = () => {
       </Badge>
     );
   };
+
+  const handleStartCSVUpload = () => {
+    setCurrentView('csv');
+  };
+
+  const handleStartManualEntry = () => {
+    setCurrentView('log');
+  };
+
+  const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
@@ -166,7 +177,7 @@ const Index = () => {
                 </Badge>
               )}
               <span className="text-sm text-gray-700">
-                Welcome, {user.user_metadata?.full_name || user.email?.split('@')[0]}
+                Welcome, {userName}
               </span>
               <button
                 onClick={signOut}
@@ -180,7 +191,13 @@ const Index = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {currentView === 'dashboard' && <Dashboard />}
+        {currentView === 'dashboard' && (
+          <Dashboard 
+            onStartCSVUpload={handleStartCSVUpload}
+            onStartManualEntry={handleStartManualEntry}
+            userName={userName}
+          />
+        )}
         {currentView === 'log' && <HealthLogForm />}
         {currentView === 'csv' && <CSVUpload />}
       </main>
