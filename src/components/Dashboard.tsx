@@ -26,6 +26,20 @@ const Dashboard = () => {
     );
   }
 
+  // Transform data for chart components
+  const transformedData = healthData.map(entry => ({
+    date: entry.date,
+    sleep: entry.sleep_hours || 0,
+    water: entry.water_intake || 0,
+    steps: entry.exercise_minutes ? entry.exercise_minutes * 100 : 0, // Estimate steps from exercise minutes
+    calories: entry.exercise_minutes ? entry.exercise_minutes * 8 : 1800, // Estimate calories
+    stress: entry.stress_level || 1,
+    mood: entry.mood >= 8 ? 'Happy' : entry.mood >= 6 ? 'Normal' : entry.mood >= 4 ? 'Okay' : 'Tired'
+  }));
+
+  // Get the latest entry for the health score
+  const latestEntry = transformedData[0];
+
   return (
     <div className="space-y-6">
       {/* Header with stats */}
@@ -78,12 +92,12 @@ const Dashboard = () => {
       ) : (
         <>
           {/* Health Score Overview */}
-          <HealthScore data={healthData} />
+          {latestEntry && <HealthScore data={latestEntry} />}
 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <HealthChart data={healthData} />
-            {hasFullDashboard && <MLSuggestions data={healthData} />}
+            <HealthChart data={transformedData} />
+            {hasFullDashboard && latestEntry && <MLSuggestions data={latestEntry} />}
           </div>
 
           {/* Recent Entries */}
@@ -102,14 +116,14 @@ const Dashboard = () => {
                     <div>
                       <p className="font-medium">{new Date(entry.date).toLocaleDateString()}</p>
                       <div className="flex gap-4 text-sm text-gray-600">
-                        <span>Mood: {entry.mood}/10</span>
-                        <span>Energy: {entry.energy}/10</span>
-                        <span>Sleep: {entry.sleep_hours}h</span>
+                        <span>Mood: {entry.mood || 0}/10</span>
+                        <span>Energy: {entry.energy || 0}/10</span>
+                        <span>Sleep: {entry.sleep_hours || 0}h</span>
                       </div>
                     </div>
                     <div className="text-right text-sm text-gray-600">
-                      <div>Exercise: {entry.exercise_minutes}min</div>
-                      <div>Water: {entry.water_intake} glasses</div>
+                      <div>Exercise: {entry.exercise_minutes || 0}min</div>
+                      <div>Water: {entry.water_intake || 0} glasses</div>
                     </div>
                   </div>
                 ))}

@@ -22,7 +22,7 @@ const HealthChart = ({ data }: HealthChartProps) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const chartData = data.map(item => ({
+  const chartData = data.slice(0, 10).reverse().map(item => ({
     ...item,
     date: formatDate(item.date),
     stepsK: Math.round(item.steps / 1000 * 10) / 10, // Convert to thousands
@@ -31,11 +31,11 @@ const HealthChart = ({ data }: HealthChartProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Sleep vs Mood Chart */}
+      {/* Sleep vs Activity Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Sleep & Activity Trends</CardTitle>
-          <CardDescription>Your daily sleep hours and step count over time</CardDescription>
+          <CardDescription>Your daily sleep hours and activity over time</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -58,7 +58,7 @@ const HealthChart = ({ data }: HealthChartProps) => {
                 dataKey="stepsK" 
                 stroke="#10B981" 
                 strokeWidth={3}
-                name="Steps (K)"
+                name="Activity Level"
                 dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
               />
             </LineChart>
@@ -83,7 +83,7 @@ const HealthChart = ({ data }: HealthChartProps) => {
               <Bar 
                 dataKey="water" 
                 fill="#06B6D4" 
-                name="Water (L)"
+                name="Water (glasses)"
                 radius={[4, 4, 0, 0]}
               />
               <Bar 
