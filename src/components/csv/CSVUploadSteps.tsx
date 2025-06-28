@@ -1,19 +1,20 @@
-
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/components/ui/use-toast';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, CheckCircle, ArrowRight, Download, Save, History } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Upload, FileText, Settings, Database, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { useCSVMappings } from '@/hooks/useCSVMappings';
+import { useHealthData } from '@/hooks/useHealthData';
 import DataPreviewChart from './DataPreviewChart';
+import { toast } from 'sonner';
 
-interface CSVRow {
-  [key: string]: string;
+interface CSVData {
+  headers: string[];
+  rows: string[][];
 }
 
 interface MappedData {
@@ -30,381 +31,323 @@ interface ColumnMapping {
   [internalField: string]: string;
 }
 
-const REQUIRED_FIELDS = [
-  { key: 'date', label: 'Date', type: 'date' },
-  { key: 'mood', label: 'Mood (1-10)', type: 'number' },
-  { key: 'energy', label: 'Energy (1-10)', type: 'number' },
-  { key: 'sleep_hours', label: 'Sleep Hours', type: 'number' },
-  { key: 'exercise_minutes', label: 'Exercise Minutes', type: 'number' },
-  { key: 'stress_level', label: 'Stress Level (1-10)', type: 'number' },
-  { key: 'water_intake', label: 'Water Intake (glasses)', type: 'number' }
+type InsertMode = 'merge' | 'overwrite' | 'new';
+
+const INTERNAL_FIELDS = [
+  { key: 'date', label: 'Date', required: true },
+  { key: 'mood', label: 'Mood (1-10)', required: true },
+  { key: 'energy', label: 'Energy (1-10)', required: true },
+  { key: 'sleep_hours', label: 'Sleep Hours', required: true },
+  { key: 'exercise_minutes', label: 'Exercise Minutes', required: true },
+  { key: 'stress_level', label: 'Stress Level (1-10)', required: true },
+  { key: 'water_intake', label: 'Water Intake (glasses)', required: true },
 ];
 
 const CSVUploadSteps = () => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [file, setFile] = useState<File | null>(null);
-  const [csvData, setCsvData] = useState<CSVRow[]>([]);
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvData, setCsvData] = useState<CSVData | null>(null);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [mappedData, setMappedData] = useState<MappedData[]>([]);
-  const [dataSummary, setDataSummary] = useState<any>(null);
-  const [insertChoice, setInsertChoice] = useState<string>('');
-  const [showPreview, setShowPreview] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const { toast } = useToast();
-  const { savedMappings, saveMapping, findSimilarMapping } = useCSVMappings();
+  const [insertMode, setInsertMode] = useState<InsertMode>('merge');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [importResults, setImportResults<{ added: number; skipped: number; replaced: number } | null>](null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { savedMappings, saveMapping, loadMapping, deleteMapping, findSimilarMapping } = useCSVMappings();
+  const { insertHealthData, refreshData } = useHealthData();
 
-  const parseCSV = (text: string): { headers: string[], data: CSVRow[] } => {
-    const lines = text.split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    const data: CSVRow[] = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-      const row: CSVRow = {};
-      
-      headers.forEach((header, index) => {
-        row[header] = values[index] || '';
-      });
-      
-      data.push(row);
-    }
-    
-    return { headers, data };
-  };
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (!selectedFile || selectedFile.type !== 'text/csv') {
-      toast({
-        title: 'Invalid file type',
-        description: 'Please select a CSV file',
-        variant: 'destructive'
-      });
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+      toast.error('Please upload a valid CSV file');
       return;
     }
 
-    try {
-      const text = await selectedFile.text();
-      const { headers, data } = parseCSV(text);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
       
-      setFile(selectedFile);
-      setCsvHeaders(headers);
-      setCsvData(data);
-      setCurrentStep(2);
+      if (lines.length < 2) {
+        toast.error('CSV file must have at least a header row and one data row');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const rows = lines.slice(1).map(line => 
+        line.split(',').map(cell => cell.trim().replace(/"/g, ''))
+      );
+
+      setCsvData({ headers, rows });
       
-      // Try to find similar mapping first
+      // Try to find similar mapping
       const similarMapping = findSimilarMapping(headers);
       if (similarMapping) {
         setColumnMapping(similarMapping.mapping);
-        toast({
-          title: 'Mapping loaded!',
-          description: `Using similar mapping: ${similarMapping.name}`,
-        });
-        return;
+        toast.success(`Applied saved mapping: ${similarMapping.name}`);
       }
       
-      // Auto-detect mappings based on common column names
-      const autoMapping: ColumnMapping = {};
-      REQUIRED_FIELDS.forEach(field => {
-        const matchingHeader = headers.find(header => 
-          header.toLowerCase().includes(field.key.toLowerCase()) ||
-          header.toLowerCase().replace('_', ' ').includes(field.label.toLowerCase().split(' ')[0])
-        );
-        if (matchingHeader) {
-          autoMapping[field.key] = matchingHeader;
+      setCurrentStep(2);
+    };
+    reader.readAsText(file);
+  };
+
+  const validateMapping = () => {
+    const errors: string[] = [];
+    const requiredFields = INTERNAL_FIELDS.filter(field => field.required);
+    
+    for (const field of requiredFields) {
+      if (!columnMapping[field.key]) {
+        errors.push(`${field.label} must be mapped to a CSV column`);
+      }
+    }
+    
+    setValidationErrors(errors);
+    return errors.length === 0;
+  };
+
+  const handleMappingComplete = () => {
+    if (!validateMapping() || !csvData) return;
+
+    setIsProcessing(true);
+    setProcessingProgress(20);
+
+    try {
+      const mapped: MappedData[] = [];
+      const errors: string[] = [];
+
+      for (let i = 0; i < csvData.rows.length; i++) {
+        const row = csvData.rows[i];
+        const entry: any = {};
+
+        // Map each field
+        for (const field of INTERNAL_FIELDS) {
+          const csvColumnIndex = csvData.headers.indexOf(columnMapping[field.key]);
+          if (csvColumnIndex === -1) continue;
+
+          const value = row[csvColumnIndex];
+          
+          if (field.key === 'date') {
+            const date = new Date(value);
+            if (isNaN(date.getTime())) {
+              errors.push(`Row ${i + 1}: Invalid date format "${value}"`);
+              continue;
+            }
+            entry[field.key] = date.toISOString().split('T')[0];
+          } else {
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) {
+              errors.push(`Row ${i + 1}: Invalid number "${value}" for ${field.label}`);
+              continue;
+            }
+            entry[field.key] = numValue;
+          }
         }
-      });
-      setColumnMapping(autoMapping);
-      
+
+        // Validate ranges
+        if (entry.mood && (entry.mood < 1 || entry.mood > 10)) {
+          errors.push(`Row ${i + 1}: Mood must be between 1-10`);
+        }
+        if (entry.energy && (entry.energy < 1 || entry.energy > 10)) {
+          errors.push(`Row ${i + 1}: Energy must be between 1-10`);
+        }
+        if (entry.stress_level && (entry.stress_level < 1 || entry.stress_level > 10)) {
+          errors.push(`Row ${i + 1}: Stress level must be between 1-10`);
+        }
+        if (entry.sleep_hours && (entry.sleep_hours < 0 || entry.sleep_hours > 24)) {
+          errors.push(`Row ${i + 1}: Sleep hours must be between 0-24`);
+        }
+
+        if (Object.keys(entry).length === INTERNAL_FIELDS.length) {
+          mapped.push(entry);
+        }
+      }
+
+      setProcessingProgress(60);
+
+      if (errors.length > 0) {
+        setValidationErrors(errors);
+        setIsProcessing(false);
+        setProcessingProgress(0);
+        return;
+      }
+
+      // Remove duplicates based on date
+      const uniqueEntries = mapped.filter((entry, index, self) => 
+        index === self.findIndex(e => e.date === entry.date)
+      );
+
+      setMappedData(uniqueEntries);
+      setValidationErrors([]);
+      setProcessingProgress(100);
+      setCurrentStep(3);
     } catch (error) {
-      toast({
-        title: 'Error parsing CSV',
-        description: 'Could not read the CSV file',
-        variant: 'destructive'
-      });
+      console.error('Error processing CSV data:', error);
+      toast.error('Error processing CSV data');
+      setValidationErrors(['Error processing CSV data. Please check your file format.']);
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress(0);
+    }
+  };
+
+  const handleSaveData = async () => {
+    if (mappedData.length === 0) {
+      toast.error('No data to save');
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingProgress(0);
+
+    try {
+      setProcessingProgress(25);
+      
+      const results = await insertHealthData(mappedData, insertMode);
+      
+      setProcessingProgress(75);
+      
+      if (results.success) {
+        setImportResults(results);
+        setProcessingProgress(100);
+        setCurrentStep(4);
+        
+        // Refresh dashboard data
+        await refreshData();
+      } else {
+        toast.error('Failed to save data to database');
+      }
+    } catch (error) {
+      console.error('Error saving data:', error);
+      toast.error('Error saving data to database');
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress(0);
     }
   };
 
   const handleSaveMapping = () => {
-    const mappingName = prompt('Enter a name for this column mapping:');
-    if (mappingName && Object.keys(columnMapping).length > 0) {
-      saveMapping(mappingName, columnMapping, csvHeaders);
-      toast({
-        title: 'Mapping saved!',
-        description: `Column mapping "${mappingName}" has been saved for future use.`,
-      });
+    const mappingName = prompt('Enter a name for this mapping:');
+    if (mappingName && csvData) {
+      saveMapping(mappingName, columnMapping, csvData.headers);
+      toast.success('Mapping saved successfully!');
     }
   };
 
-  const handleColumnMapping = () => {
-    // Validate all required fields are mapped
-    const missingMappings = REQUIRED_FIELDS.filter(field => !columnMapping[field.key]);
-    if (missingMappings.length > 0) {
-      toast({
-        title: 'Missing mappings',
-        description: `Please map: ${missingMappings.map(f => f.label).join(', ')}`,
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    // Transform data based on mappings
-    const transformed: MappedData[] = [];
-    const errors: string[] = [];
-    
-    csvData.forEach((row, index) => {
-      try {
-        const mappedRow: any = {};
-        
-        REQUIRED_FIELDS.forEach(field => {
-          const csvColumn = columnMapping[field.key];
-          const value = row[csvColumn];
-          
-          if (!value || value.trim() === '') {
-            throw new Error(`Missing ${field.label} in row ${index + 1}`);
-          }
-          
-          if (field.type === 'number') {
-            const numValue = parseFloat(value);
-            if (isNaN(numValue)) {
-              throw new Error(`Invalid ${field.label} in row ${index + 1}: ${value}`);
-            }
-            mappedRow[field.key] = numValue;
-          } else {
-            mappedRow[field.key] = value;
-          }
-        });
-        
-        transformed.push(mappedRow);
-      } catch (error: any) {
-        errors.push(error.message);
-      }
-    });
-    
-    if (errors.length > 0 && errors.length === csvData.length) {
-      toast({
-        title: 'Data validation failed',
-        description: `All rows have issues. Please check your column mappings.`,
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    setMappedData(transformed);
-    
-    // Generate summary
-    const uniqueDates = new Set(transformed.map(d => d.date));
-    const duplicates = csvData.length - transformed.length;
-    const summary = {
-      totalRows: transformed.length,
-      duplicates,
-      uniqueDates: uniqueDates.size,
-      dateRange: {
-        start: Math.min(...transformed.map(d => new Date(d.date).getTime())),
-        end: Math.max(...transformed.map(d => new Date(d.date).getTime()))
-      },
-      averages: {
-        mood: (transformed.reduce((sum, d) => sum + d.mood, 0) / transformed.length).toFixed(1),
-        energy: (transformed.reduce((sum, d) => sum + d.energy, 0) / transformed.length).toFixed(1),
-        sleep: (transformed.reduce((sum, d) => sum + d.sleep_hours, 0) / transformed.length).toFixed(1)
-      }
-    };
-    
-    setDataSummary(summary);
-    setCurrentStep(3);
-    
-    if (errors.length > 0) {
-      toast({
-        title: 'Some rows skipped',
-        description: `${errors.length} rows had issues and were skipped.`,
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const handleInsertData = async () => {
-    if (!insertChoice) return;
-    
-    setProcessing(true);
-    setCurrentStep(4);
-    
-    try {
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Here you would implement the actual data insertion logic based on insertChoice
-      console.log('Insert choice:', insertChoice);
-      console.log('Data to insert:', mappedData);
-      
-      toast({
-        title: '✅ Data uploaded successfully!',
-        description: `${mappedData.length} entries added to your dashboard`,
-      });
-      
-      setCurrentStep(5);
-    } catch (error) {
-      toast({
-        title: 'Upload failed',
-        description: 'Could not save your data',
-        variant: 'destructive'
-      });
-      setCurrentStep(3);
-    } finally {
-      setProcessing(false);
+  const handleLoadMapping = (mappingId: string) => {
+    const mapping = loadMapping(mappingId);
+    if (mapping) {
+      setColumnMapping(mapping.mapping);
+      toast.success('Mapping loaded successfully!');
     }
   };
 
   const exportMergedData = () => {
-    const csv = [
-      REQUIRED_FIELDS.map(f => f.key).join(','),
-      ...mappedData.map(row => 
-        REQUIRED_FIELDS.map(f => row[f.key as keyof MappedData]).join(',')
-      )
+    if (mappedData.length === 0) return;
+    
+    const headers = ['date', 'mood', 'energy', 'sleep_hours', 'exercise_minutes', 'stress_level', 'water_intake'];
+    const csvContent = [
+      headers.join(','),
+      ...mappedData.map(row => headers.map(header => row[header as keyof MappedData]).join(','))
     ].join('\n');
     
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'aurax-health-data.csv';
+    a.download = 'health_data_export.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const resetUpload = () => {
-    setCurrentStep(1);
-    setFile(null);
-    setCsvData([]);
-    setCsvHeaders([]);
+    setCsvData(null);
     setColumnMapping({});
     setMappedData([]);
-    setDataSummary(null);
-    setInsertChoice('');
-    setShowPreview(false);
+    setValidationErrors([]);
+    setImportResults(null);
+    setCurrentStep(1);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Progress Bar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Advanced CSV Health Data Import
-          </CardTitle>
-          <div className="space-y-2">
-            <Progress value={(currentStep / 5) * 100} className="w-full" />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>Step {currentStep} of 5</span>
-              <span>{Math.round((currentStep / 5) * 100)}% Complete</span>
+      {/* Progress indicator */}
+      <div className="flex items-center justify-between mb-6">
+        {[1, 2, 3, 4].map((step) => (
+          <div key={step} className="flex items-center">
+            <div className={`rounded-full w-10 h-10 flex items-center justify-center ${
+              currentStep >= step ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
+            }`}>
+              {step}
             </div>
+            {step < 4 && <div className={`w-16 h-1 mx-2 ${
+              currentStep > step ? 'bg-blue-500' : 'bg-gray-200'
+            }`} />}
           </div>
-        </CardHeader>
-      </Card>
+        ))}
+      </div>
 
       {/* Step 1: File Upload */}
       {currentStep === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>📥 Step 1: Upload Your CSV File</CardTitle>
-            <CardDescription>
-              Upload your health data CSV file. We'll automatically detect the structure and suggest mappings.
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Upload CSV File
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-lg font-medium mb-2">Choose your CSV file</p>
+              <p className="text-gray-600 mb-4">Upload a CSV file with your health data</p>
               <Input
+                ref={fileInputRef}
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
-                className="max-w-xs mx-auto mb-4"
+                className="max-w-xs mx-auto"
               />
-              <p className="text-sm text-gray-500 mb-2">
-                Select a CSV file with your health data
-              </p>
-              {savedMappings.length > 0 && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <History className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm text-blue-600">
-                    {savedMappings.length} saved mapping{savedMappings.length !== 1 ? 's' : ''} available
-                  </span>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* Step 2: Column Mapping */}
-      {currentStep === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>🔁 Step 2: Map Your Columns</CardTitle>
-            <CardDescription>
-              Match your CSV columns to our internal fields for analysis
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Preview first few rows */}
-              <div className="mb-6">
-                <h4 className="font-medium mb-2">Preview (first 5 rows):</h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border rounded">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {csvHeaders.map(header => (
-                          <th key={header} className="px-3 py-2 text-left border-r">
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvData.slice(0, 5).map((row, i) => (
-                        <tr key={i} className="border-t">
-                          {csvHeaders.map(header => (
-                            <td key={header} className="px-3 py-2 border-r">
-                              {row[header]}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Column Mapping Form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {REQUIRED_FIELDS.map(field => (
-                  <div key={field.key} className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      {field.label}
-                      <Badge variant="secondary" className="text-xs">
-                        {field.type}
-                      </Badge>
-                    </label>
+      {currentStep === 2 && csvData && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Map Your Columns
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {INTERNAL_FIELDS.map((field) => (
+                  <div key={field.key} className="flex items-center gap-4">
+                    <div className="w-48">
+                      <label className="text-sm font-medium">{field.label}</label>
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </div>
                     <Select
                       value={columnMapping[field.key] || ''}
-                      onValueChange={(value) => setColumnMapping(prev => ({
-                        ...prev,
-                        [field.key]: value
-                      }))}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, [field.key]: value }))}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select column..." />
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Select CSV column" />
                       </SelectTrigger>
                       <SelectContent>
-                        {csvHeaders.map(header => (
-                          <SelectItem key={header} value={header}>
-                            {header}
-                          </SelectItem>
+                        {csvData.headers.map((header) => (
+                          <SelectItem key={header} value={header}>{header}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -412,199 +355,247 @@ const CSVUploadSteps = () => {
                 ))}
               </div>
 
-              <div className="flex gap-3 mt-6">
-                <Button onClick={handleSaveMapping} variant="outline" className="flex-1">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Mapping
-                </Button>
-                <Button onClick={handleColumnMapping} className="flex-1">
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  Analyze & Clean Data
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 3: Data Summary & Insert Choice */}
-      {currentStep === 3 && dataSummary && (
-        <Card>
-          <CardHeader>
-            <CardTitle>🧠 Step 3: Data Analysis Complete</CardTitle>
-            <CardDescription>
-              Your data has been cleaned and analyzed. Choose how to save it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Data Summary */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{dataSummary.totalRows}</div>
-                  <div className="text-sm text-gray-600">Valid Entries</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{dataSummary.uniqueDates}</div>
-                  <div className="text-sm text-gray-600">Unique Days</div>
-                </div>
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{dataSummary.averages.mood}</div>
-                  <div className="text-sm text-gray-600">Avg Mood</div>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-600">{dataSummary.averages.energy}</div>
-                  <div className="text-sm text-gray-600">Avg Energy</div>
-                </div>
-              </div>
-
-              {dataSummary.duplicates > 0 && (
-                <div className="p-3 bg-orange-50 rounded-lg">
-                  <p className="text-orange-800 text-sm">
-                    ⚠️ {dataSummary.duplicates} rows were skipped due to missing or invalid data
-                  </p>
-                </div>
+              {validationErrors.length > 0 && (
+                <Alert className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <ul className="list-disc list-inside space-y-1">
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
               )}
 
-              {/* Insert Options */}
+              <div className="flex gap-4 mt-6">
+                <Button onClick={handleMappingComplete} disabled={isProcessing}>
+                  {isProcessing ? 'Processing...' : 'Analyze Data'}
+                </Button>
+                <Button variant="outline" onClick={handleSaveMapping}>
+                  Save Mapping
+                </Button>
+              </div>
+
+              {/* Saved mappings */}
+              {savedMappings.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium mb-2">Saved Mappings:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {savedMappings.map((mapping) => (
+                      <Button
+                        key={mapping.id}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleLoadMapping(mapping.id)}
+                      >
+                        {mapping.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Data Preview */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      {csvData.headers.map((header) => (
+                        <th key={header} className="text-left p-2">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvData.rows.slice(0, 5).map((row, index) => (
+                      <tr key={index} className="border-b">
+                        {row.map((cell, cellIndex) => (
+                          <td key={cellIndex} className="p-2">{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {csvData.rows.length > 5 && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Showing first 5 rows of {csvData.rows.length} total rows
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Step 3: Review and Insert Options */}
+      {currentStep === 3 && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Review & Choose Insert Mode
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-4">
-                <h4 className="font-medium">Where would you like to insert this data?</h4>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="font-medium">Data Analysis Complete</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>Total entries: <Badge variant="secondary">{mappedData.length}</Badge></div>
+                    <div>Date range: <Badge variant="outline">
+                      {mappedData.length > 0 ? `${mappedData[mappedData.length - 1]?.date} to ${mappedData[0]?.date}` : 'N/A'}
+                    </Badge></div>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
-                  <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="insertChoice"
-                      value="merge"
-                      checked={insertChoice === 'merge'}
-                      onChange={(e) => setInsertChoice(e.target.value)}
-                    />
-                    <div>
-                      <div className="font-medium">🔄 Merge into existing dashboard</div>
-                      <div className="text-sm text-gray-500">Add to your current health data</div>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="insertChoice"
-                      value="new"
-                      checked={insertChoice === 'new'}
-                      onChange={(e) => setInsertChoice(e.target.value)}
-                    />
-                    <div>
-                      <div className="font-medium">➕ Create new dashboard section</div>
-                      <div className="text-sm text-gray-500">Keep this data separate</div>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="insertChoice"
-                      value="overwrite"
-                      checked={insertChoice === 'overwrite'}
-                      onChange={(e) => setInsertChoice(e.target.value)}
-                    />
-                    <div>
-                      <div className="font-medium">⚠️ Overwrite overlapping dates</div>
-                      <div className="text-sm text-gray-500">Replace existing data for same dates</div>
-                    </div>
-                  </label>
+                  <label className="text-sm font-medium">How would you like to insert this data?</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="insertMode"
+                        value="merge"
+                        checked={insertMode === 'merge'}
+                        onChange={(e) => setInsertMode(e.target.value as InsertMode)}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <div className="font-medium">Merge into existing data</div>
+                        <div className="text-sm text-gray-600">Update existing entries, add new ones</div>
+                      </div>
+                    </label>
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="insertMode"
+                        value="overwrite"
+                        checked={insertMode === 'overwrite'}
+                        onChange={(e) => setInsertMode(e.target.value as InsertMode)}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <div className="font-medium">Overwrite existing data</div>
+                        <div className="text-sm text-gray-600">Replace data for overlapping dates</div>
+                      </div>
+                    </label>
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="insertMode"
+                        value="new"
+                        checked={insertMode === 'new'}
+                        onChange={(e) => setInsertMode(e.target.value as InsertMode)}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <div className="font-medium">Add as new entries only</div>
+                        <div className="text-sm text-gray-600">Skip dates that already exist</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <Button onClick={handleSaveData} disabled={isProcessing}>
+                    {isProcessing ? 'Saving...' : `Save ${mappedData.length} Entries`}
+                  </Button>
+                  <Button variant="outline" onClick={exportMergedData}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Preview
+                  </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex gap-3">
-                <Button 
-                  onClick={() => setShowPreview(true)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  📊 Preview Charts
-                </Button>
-                <Button 
-                  onClick={handleInsertData}
-                  disabled={!insertChoice}
-                  className="flex-1"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Save Data
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Chart Preview */}
+          {mappedData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Data Preview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DataPreviewChart data={mappedData} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
-      {/* Step 4: Processing */}
-      {currentStep === 4 && (
+      {/* Step 4: Success */}
+      {currentStep === 4 && importResults && (
         <Card>
           <CardHeader>
-            <CardTitle>⏳ Processing Your Data...</CardTitle>
-            <CardDescription>
-              Saving and analyzing your health data
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p className="text-gray-600">Please wait while we process your data...</p>
-              <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 5: Success */}
-      {currentStep === 5 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="h-6 w-6" />
-              ✅ Upload Complete!
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Import Complete!
             </CardTitle>
-            <CardDescription>
-              Your health data has been successfully imported and analyzed
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="p-4 bg-green-50 rounded-lg">
-                <p className="text-green-800 font-medium">
-                  🎉 {mappedData.length} new entries added. Your trends are up to date!
-                </p>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{importResults.added}</div>
+                    <div className="text-sm">Added</div>
+                  </div>
+                  {importResults.replaced > 0 && (
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{importResults.replaced}</div>
+                      <div className="text-sm">Updated</div>
+                    </div>
+                  )}
+                  {importResults.skipped > 0 && (
+                    <div>
+                      <div className="text-2xl font-bold text-yellow-600">{importResults.skipped}</div>
+                      <div className="text-sm">Skipped</div>
+                    </div>
+                  )}
+                </div>
               </div>
-              
-              <div className="flex gap-3">
-                <Button onClick={exportMergedData} variant="outline" className="flex-1">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Merged Data
-                </Button>
-                <Button onClick={() => window.location.href = '/'} className="flex-1">
-                  View Dashboard
-                </Button>
+
+              <div className="text-center space-y-4">
+                <p className="text-gray-600">Your dashboard has been updated with the new data!</p>
+                <div className="flex gap-4 justify-center">
+                  <Button onClick={() => window.location.reload()}>
+                    View Updated Dashboard
+                  </Button>
+                  <Button variant="outline" onClick={resetUpload}>
+                    Upload Another File
+                  </Button>
+                </div>
               </div>
-              
-              <Button onClick={resetUpload} variant="outline" className="w-full mt-4">
-                Upload Another File
-              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>📊 Data Preview Charts</DialogTitle>
-            <DialogDescription>
-              Preview of your health data trends before saving
-            </DialogDescription>
-          </DialogHeader>
-          <DataPreviewChart data={mappedData} />
-        </DialogContent>
-      </Dialog>
+      {/* Processing indicator */}
+      {isProcessing && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Processing...</span>
+                <span>{processingProgress}%</span>
+              </div>
+              <Progress value={processingProgress} className="w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
