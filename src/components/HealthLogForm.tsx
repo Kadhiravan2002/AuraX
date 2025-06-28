@@ -1,192 +1,225 @@
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { useHealthData } from '@/hooks/useHealthData';
-import { Heart, Zap, Moon, Dumbbell, Droplets, Brain } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
+
+interface HealthData {
+  date: string;
+  sleep: number;
+  water: number;
+  steps: number;
+  calories: number;
+  stress: number;
+  mood: string;
+}
 
 const HealthLogForm = () => {
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    mood: [7],
-    energy: [7],
-    sleep_hours: 8,
-    exercise_minutes: 30,
-    stress_level: [5],
-    water_intake: 8,
+    sleep: '',
+    water: '',
+    steps: '',
+    calories: '',
+    stress: '3',
+    mood: '',
   });
 
-  const { addSingleEntry } = useHealthData();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    
+    const newEntry: HealthData = {
+      date: new Date().toISOString().split('T')[0],
+      sleep: parseFloat(formData.sleep),
+      water: parseFloat(formData.water),
+      steps: parseInt(formData.steps),
+      calories: parseInt(formData.calories),
+      stress: parseInt(formData.stress),
+      mood: formData.mood,
+    };
 
-    const success = await addSingleEntry({
-      date: formData.date,
-      mood: formData.mood[0],
-      energy: formData.energy[0],
-      sleep_hours: formData.sleep_hours,
-      exercise_minutes: formData.exercise_minutes,
-      stress_level: formData.stress_level[0],
-      water_intake: formData.water_intake,
+    // Save to localStorage
+    const existingData = JSON.parse(localStorage.getItem('healthData') || '[]');
+    const updatedData = [...existingData, newEntry];
+    localStorage.setItem('healthData', JSON.stringify(updatedData));
+
+    toast({
+      title: "Health data logged successfully!",
+      description: "Your daily health metrics have been recorded.",
     });
 
-    if (success) {
-      // Reset form to default values
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        mood: [7],
-        energy: [7],
-        sleep_hours: 8,
-        exercise_minutes: 30,
-        stress_level: [5],
-        water_intake: 8,
-      });
-    }
-
-    setIsSubmitting(false);
+    // Reset form
+    setFormData({
+      sleep: '',
+      water: '',
+      steps: '',
+      calories: '',
+      stress: '3',
+      mood: '',
+    });
   };
+
+  const stressLevels = [
+    { value: '1', label: '1 - Very Low', color: 'text-green-600' },
+    { value: '2', label: '2 - Low', color: 'text-green-500' },
+    { value: '3', label: '3 - Moderate', color: 'text-yellow-500' },
+    { value: '4', label: '4 - High', color: 'text-orange-500' },
+    { value: '5', label: '5 - Very High', color: 'text-red-500' },
+  ];
 
   return (
     <div className="max-w-2xl mx-auto">
-      <Card>
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Heart className="h-5 w-5 text-red-500" />
-            Log Your Health Data
+          <CardTitle className="text-2xl text-center text-gray-900">
+            Daily Health Log
           </CardTitle>
+          <CardDescription className="text-center">
+            Track your daily health metrics to get personalized insights
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Date */}
+            {/* Sleep Duration */}
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                required
-              />
-            </div>
-
-            {/* Mood */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Heart className="h-4 w-4 text-red-500" />
-                Mood: {formData.mood[0]}/10
+              <Label htmlFor="sleep" className="text-sm font-medium text-gray-700">
+                Sleep Duration (hours)
               </Label>
-              <Slider
-                value={formData.mood}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, mood: value }))}
-                min={1}
-                max={10}
-                step={1}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Very Sad</span>
-                <span>Very Happy</span>
-              </div>
-            </div>
-
-            {/* Energy */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-yellow-500" />
-                Energy: {formData.energy[0]}/10
-              </Label>
-              <Slider
-                value={formData.energy}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, energy: value }))}
-                min={1}
-                max={10}
-                step={1}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Exhausted</span>
-                <span>Energized</span>
-              </div>
-            </div>
-
-            {/* Sleep Hours */}
-            <div className="space-y-2">
-              <Label htmlFor="sleep" className="flex items-center gap-2">
-                <Moon className="h-4 w-4 text-blue-500" />
-                Sleep Hours
-              </Label>
-              <Input
-                id="sleep"
-                type="number"
-                value={formData.sleep_hours}
-                onChange={(e) => setFormData(prev => ({ ...prev, sleep_hours: parseFloat(e.target.value) }))}
-                min="0"
-                max="24"
-                step="0.5"
-                required
-              />
-            </div>
-
-            {/* Exercise Minutes */}
-            <div className="space-y-2">
-              <Label htmlFor="exercise" className="flex items-center gap-2">
-                <Dumbbell className="h-4 w-4 text-green-500" />
-                Exercise Minutes
-              </Label>
-              <Input
-                id="exercise"
-                type="number"
-                value={formData.exercise_minutes}
-                onChange={(e) => setFormData(prev => ({ ...prev, exercise_minutes: parseInt(e.target.value) }))}
-                min="0"
-                required
-              />
-            </div>
-
-            {/* Stress Level */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-purple-500" />
-                Stress Level: {formData.stress_level[0]}/10
-              </Label>
-              <Slider
-                value={formData.stress_level}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, stress_level: value }))}
-                min={1}
-                max={10}
-                step={1}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Very Relaxed</span>
-                <span>Very Stressed</span>
+              <div className="relative">
+                <Input
+                  id="sleep"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="12"
+                  placeholder="e.g., 7.5"
+                  value={formData.sleep}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sleep: e.target.value }))}
+                  className="pl-10"
+                  required
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  😴
+                </div>
               </div>
             </div>
 
             {/* Water Intake */}
             <div className="space-y-2">
-              <Label htmlFor="water" className="flex items-center gap-2">
-                <Droplets className="h-4 w-4 text-cyan-500" />
-                Water Intake (glasses)
+              <Label htmlFor="water" className="text-sm font-medium text-gray-700">
+                Water Intake (liters)
               </Label>
-              <Input
-                id="water"
-                type="number"
-                value={formData.water_intake}
-                onChange={(e) => setFormData(prev => ({ ...prev, water_intake: parseInt(e.target.value) }))}
-                min="0"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="water"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="10"
+                  placeholder="e.g., 2.5"
+                  value={formData.water}
+                  onChange={(e) => setFormData(prev => ({ ...prev, water: e.target.value }))}
+                  className="pl-10"
+                  required
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  💧
+                </div>
+              </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Log Health Data'}
+            {/* Steps */}
+            <div className="space-y-2">
+              <Label htmlFor="steps" className="text-sm font-medium text-gray-700">
+                Steps Walked
+              </Label>
+              <div className="relative">
+                <Input
+                  id="steps"
+                  type="number"
+                  min="0"
+                  max="50000"
+                  placeholder="e.g., 8000"
+                  value={formData.steps}
+                  onChange={(e) => setFormData(prev => ({ ...prev, steps: e.target.value }))}
+                  className="pl-10"
+                  required
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  👟
+                </div>
+              </div>
+            </div>
+
+            {/* Calories */}
+            <div className="space-y-2">
+              <Label htmlFor="calories" className="text-sm font-medium text-gray-700">
+                Calories Consumed
+              </Label>
+              <div className="relative">
+                <Input
+                  id="calories"
+                  type="number"
+                  min="0"
+                  max="5000"
+                  placeholder="e.g., 2000"
+                  value={formData.calories}
+                  onChange={(e) => setFormData(prev => ({ ...prev, calories: e.target.value }))}
+                  className="pl-10"
+                  required
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  🍎
+                </div>
+              </div>
+            </div>
+
+            {/* Stress Level */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">
+                Stress Level (1-5 scale)
+              </Label>
+              <Select value={formData.stress} onValueChange={(value) => setFormData(prev => ({ ...prev, stress: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select stress level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stressLevels.map((level) => (
+                    <SelectItem key={level.value} value={level.value}>
+                      <span className={level.color}>{level.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Mood */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">
+                Current Mood
+              </Label>
+              <Select value={formData.mood} onValueChange={(value) => setFormData(prev => ({ ...prev, mood: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your mood" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Happy">😊 Happy</SelectItem>
+                  <SelectItem value="Energetic">⚡ Energetic</SelectItem>
+                  <SelectItem value="Normal">😐 Normal</SelectItem>
+                  <SelectItem value="Tired">😴 Tired</SelectItem>
+                  <SelectItem value="Stressed">😰 Stressed</SelectItem>
+                  <SelectItem value="Sad">😢 Sad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-medium py-3"
+            >
+              Log Health Data
             </Button>
           </form>
         </CardContent>
