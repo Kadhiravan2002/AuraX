@@ -52,7 +52,7 @@ const CSVUploadSteps = () => {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
-  const [importResults, setImportResults<{ added: number; skipped: number; replaced: number } | null>](null);
+  const [importResults, setImportResults] = useState<{ added: number; skipped: number; replaced: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { savedMappings, saveMapping, loadMapping, deleteMapping, findSimilarMapping } = useCSVMappings();
