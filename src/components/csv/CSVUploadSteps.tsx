@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +25,16 @@ interface MappedData {
   water_intake: number;
 }
 
+interface DashboardHealthData {
+  date: string;
+  sleep: number;
+  water: number;
+  steps: number;
+  calories: number;
+  stress: number;
+  mood: string;
+}
+
 interface ColumnMapping {
   [internalField: string]: string;
 }
@@ -48,11 +57,24 @@ const CSVUploadSteps = () => {
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [mappedData, setMappedData] = useState<MappedData[]>([]);
   const [dataSummary, setDataSummary] = useState<any>(null);
-  const [insertChoice, setInsertChoice] = useState<string>('');
+  const [insertChoice, setInsertChoice] = useState<'merge' | 'new' | 'overwrite'>('merge');
   const [showPreview, setShowPreview] = useState(false);
   const [processing, setProcessing] = useState(false);
   const { toast } = useToast();
   const { savedMappings, saveMapping, findSimilarMapping } = useCSVMappings();
+
+  // Helper function to convert CSV data to dashboard format
+  const convertToDashboardFormat = (csvData: MappedData[]): DashboardHealthData[] => {
+    return csvData.map(item => ({
+      date: item.date,
+      sleep: item.sleep_hours,
+      water: item.water_intake,
+      steps: item.exercise_minutes * 100, // Convert exercise minutes to approximate steps
+      calories: 1800 + (item.energy * 50), // Estimate calories based on energy level
+      stress: item.stress_level,
+      mood: item.mood >= 8 ? 'Happy' : item.mood >= 6 ? 'Normal' : item.mood >= 4 ? 'Tired' : 'Sad'
+    }));
+  };
 
   const parseCSV = (text: string): { headers: string[], data: CSVRow[] } => {
     const lines = text.split('\n');
@@ -96,7 +118,6 @@ const CSVUploadSteps = () => {
       setCsvData(data);
       setCurrentStep(2);
       
-      // Try to find similar mapping first
       const similarMapping = findSimilarMapping(headers);
       if (similarMapping) {
         setColumnMapping(similarMapping.mapping);
@@ -107,7 +128,6 @@ const CSVUploadSteps = () => {
         return;
       }
       
-      // Auto-detect mappings based on common column names
       const autoMapping: ColumnMapping = {};
       REQUIRED_FIELDS.forEach(field => {
         const matchingHeader = headers.find(header => 
@@ -141,7 +161,6 @@ const CSVUploadSteps = () => {
   };
 
   const handleColumnMapping = () => {
-    // Validate all required fields are mapped
     const missingMappings = REQUIRED_FIELDS.filter(field => !columnMapping[field.key]);
     if (missingMappings.length > 0) {
       toast({
@@ -152,7 +171,6 @@ const CSVUploadSteps = () => {
       return;
     }
 
-    // Transform data based on mappings
     const transformed: MappedData[] = [];
     const errors: string[] = [];
     
@@ -196,7 +214,6 @@ const CSVUploadSteps = () => {
     
     setMappedData(transformed);
     
-    // Generate summary
     const uniqueDates = new Set(transformed.map(d => d.date));
     const duplicates = csvData.length - transformed.length;
     const summary = {
@@ -234,11 +251,43 @@ const CSVUploadSteps = () => {
     
     try {
       // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Here you would implement the actual data insertion logic based on insertChoice
-      console.log('Insert choice:', insertChoice);
-      console.log('Data to insert:', mappedData);
+      // Convert CSV data to dashboard format
+      const dashboardData = convertToDashboardFormat(mappedData);
+      
+      // Get existing dashboard data
+      const existingDataStr = localStorage.getItem('healthData');
+      let existingData: DashboardHealthData[] = existingDataStr ? JSON.parse(existingDataStr) : [];
+      
+      let finalData: DashboardHealthData[] = [];
+      
+      switch (insertChoice) {
+        case 'merge':
+          // Merge data, keeping existing entries for same dates
+          const existingDates = new Set(existingData.map(d => d.date));
+          const newEntries = dashboardData.filter(d => !existingDates.has(d.date));
+          finalData = [...existingData, ...newEntries];
+          break;
+          
+        case 'overwrite':
+          // Replace entries for same dates, keep others
+          const csvDates = new Set(dashboardData.map(d => d.date));
+          const keptEntries = existingData.filter(d => !csvDates.has(d.date));
+          finalData = [...keptEntries, ...dashboardData];
+          break;
+          
+        case 'new':
+          // Keep existing data separate, just add new data
+          finalData = [...existingData, ...dashboardData];
+          break;
+      }
+      
+      // Sort by date
+      finalData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      // Save to localStorage
+      localStorage.setItem('healthData', JSON.stringify(finalData));
       
       toast({
         title: '✅ Data uploaded successfully!',
@@ -283,7 +332,7 @@ const CSVUploadSteps = () => {
     setColumnMapping({});
     setMappedData([]);
     setDataSummary(null);
-    setInsertChoice('');
+    setInsertChoice('merge');
     setShowPreview(false);
   };
 
@@ -476,7 +525,7 @@ const CSVUploadSteps = () => {
                       name="insertChoice"
                       value="merge"
                       checked={insertChoice === 'merge'}
-                      onChange={(e) => setInsertChoice(e.target.value)}
+                      onChange={(e) => setInsertChoice(e.target.value as 'merge' | 'new' | 'overwrite')}
                     />
                     <div>
                       <div className="font-medium">🔄 Merge into existing dashboard</div>
@@ -490,7 +539,7 @@ const CSVUploadSteps = () => {
                       name="insertChoice"
                       value="new"
                       checked={insertChoice === 'new'}
-                      onChange={(e) => setInsertChoice(e.target.value)}
+                      onChange={(e) => setInsertChoice(e.target.value as 'merge' | 'new' | 'overwrite')}
                     />
                     <div>
                       <div className="font-medium">➕ Create new dashboard section</div>
@@ -504,7 +553,7 @@ const CSVUploadSteps = () => {
                       name="insertChoice"
                       value="overwrite"
                       checked={insertChoice === 'overwrite'}
-                      onChange={(e) => setInsertChoice(e.target.value)}
+                      onChange={(e) => setInsertChoice(e.target.value as 'merge' | 'new' | 'overwrite')}
                     />
                     <div>
                       <div className="font-medium">⚠️ Overwrite overlapping dates</div>
@@ -571,7 +620,7 @@ const CSVUploadSteps = () => {
             <div className="space-y-4">
               <div className="p-4 bg-green-50 rounded-lg">
                 <p className="text-green-800 font-medium">
-                  🎉 {mappedData.length} new entries added. Your trends are up to date!
+                  🎉 {mappedData.length} new entries added. Your dashboard will refresh automatically!
                 </p>
               </div>
               

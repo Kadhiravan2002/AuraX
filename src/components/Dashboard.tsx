@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import HealthChart from './HealthChart';
@@ -19,17 +18,42 @@ const Dashboard = () => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
 
-  useEffect(() => {
+  const loadHealthData = () => {
     // Load existing data from localStorage
     const savedData = localStorage.getItem('healthData');
     if (savedData) {
-      setHealthData(JSON.parse(savedData));
+      const parsedData = JSON.parse(savedData);
+      setHealthData(parsedData);
     } else {
       // Generate some sample data for demonstration
       const sampleData = generateSampleData();
       setHealthData(sampleData);
       localStorage.setItem('healthData', JSON.stringify(sampleData));
     }
+  };
+
+  useEffect(() => {
+    loadHealthData();
+
+    // Listen for storage changes (when CSV data is uploaded)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'healthData' && e.newValue) {
+        setHealthData(JSON.parse(e.newValue));
+      }
+    };
+
+    // Listen for custom events (for same-tab updates)
+    const handleDataUpdate = () => {
+      loadHealthData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('healthDataUpdated', handleDataUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('healthDataUpdated', handleDataUpdate);
+    };
   }, []);
 
   const generateSampleData = (): HealthData[] => {
