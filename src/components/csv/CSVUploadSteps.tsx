@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,8 @@ import {
   MapPin, 
   CheckCircle, 
   AlertCircle, 
-  Download,
   Save,
   Trash2,
-  Copy,
   RotateCcw
 } from 'lucide-react';
 import { useCSVMappings } from '@/hooks/useCSVMappings';
@@ -339,7 +338,7 @@ const CSVUploadSteps = () => {
                   <Label htmlFor={`select-${header}`}>{header}</Label>
                   <Select onValueChange={(value) => handleMappingChange(header, value)}>
                     <SelectTrigger id={`select-${header}`}>
-                      <SelectValue placeholder="Select Field" value={columnMapping[header]} />
+                      <SelectValue placeholder="Select Field" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="date">Date</SelectItem>
@@ -427,7 +426,15 @@ const CSVUploadSteps = () => {
             {cleanedData.length > 0 && (
               <div className="space-y-2">
                 <h4 className="font-medium">Data Preview</h4>
-                <DataPreviewChart data={cleanedData} />
+                <DataPreviewChart data={cleanedData.map(item => ({
+                  ...item,
+                  mood: item.mood || 0,
+                  energy: item.energy || 0,
+                  sleep_hours: item.sleep_hours || 0,
+                  exercise_minutes: item.exercise_minutes || 0,
+                  stress_level: item.stress_level || 0,
+                  water_intake: item.water_intake || 0,
+                }))} />
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -475,9 +482,12 @@ const CSVUploadSteps = () => {
 
             <div className="space-y-2">
               <Label>Insert Mode</Label>
-              <Select onValueChange={setInsertMode} defaultValue="merge">
+              <Select 
+                onValueChange={(value: 'merge' | 'overwrite' | 'new') => setInsertMode(value)} 
+                defaultValue="merge"
+              >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select insert mode" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="merge">Merge (Update existing, add new)</SelectItem>
