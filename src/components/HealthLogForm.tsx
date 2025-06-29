@@ -5,60 +5,92 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-
-interface HealthData {
-  date: string;
-  sleep: number;
-  water: number;
-  steps: number;
-  calories: number;
-  stress: number;
-  mood: string;
-}
 
 const HealthLogForm = () => {
   const [formData, setFormData] = useState({
     sleep: '',
     water: '',
-    steps: '',
-    calories: '',
+    exercise: '',
     stress: '3',
-    mood: '',
+    mood: '3',
+    energy: '5'
   });
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newEntry: HealthData = {
-      date: new Date().toISOString().split('T')[0],
-      sleep: parseFloat(formData.sleep),
-      water: parseFloat(formData.water),
-      steps: parseInt(formData.steps),
-      calories: parseInt(formData.calories),
-      stress: parseInt(formData.stress),
-      mood: formData.mood,
-    };
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to save health data",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // Save to localStorage
-    const existingData = JSON.parse(localStorage.getItem('healthData') || '[]');
-    const updatedData = [...existingData, newEntry];
-    localStorage.setItem('healthData', JSON.stringify(updatedData));
+    setLoading(true);
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { error } = await supabase
+        .from('health_data')
+        .upsert({
+          user_id: user.id,
+          date: today,
+          sleep_hours: parseFloat(formData.sleep),
+          water_intake: parseFloat(formData.water),
+          exercise_minutes: parseInt(formData.exercise),
+          stress_level: parseInt(formData.stress),
+          mood: parseInt(formData.mood),
+          energy: parseInt(formData.energy)
+        }, {
+          onConflict: 'user_id,date'
+        });
 
-    toast({
-      title: "Health data logged successfully!",
-      description: "Your daily health metrics have been recorded.",
-    });
+      if (error) {
+        console.error('Error saving health data:', error);
+        toast({
+          title: "Error saving data",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
 
-    // Reset form
-    setFormData({
-      sleep: '',
-      water: '',
-      steps: '',
-      calories: '',
-      stress: '3',
-      mood: '',
-    });
+      toast({
+        title: "Health data saved successfully!",
+        description: "Your daily health metrics have been recorded.",
+      });
+
+      // Reset form
+      setFormData({
+        sleep: '',
+        water: '',
+        exercise: '',
+        stress: '3',
+        mood: '3',
+        energy: '5'
+      });
+
+      // Trigger a refresh of the dashboard data
+      window.dispatchEvent(new CustomEvent('healthDataUpdated'));
+      
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save health data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const stressLevels = [
@@ -67,6 +99,22 @@ const HealthLogForm = () => {
     { value: '3', label: '3 - Moderate', color: 'text-yellow-500' },
     { value: '4', label: '4 - High', color: 'text-orange-500' },
     { value: '5', label: '5 - Very High', color: 'text-red-500' },
+  ];
+
+  const moodLevels = [
+    { value: '1', label: '😢 Sad' },
+    { value: '2', label: '😴 Tired' },
+    { value: '3', label: '😐 Normal' },
+    { value: '4', label: '😊 Happy' },
+    { value: '5', label: '⚡ Energetic' },
+  ];
+
+  const energyLevels = [
+    { value: '1', label: '1 - Very Low' },
+    { value: '2', label: '2 - Low' },
+    { value: '3', label: '3 - Moderate' },
+    { value: '4', label: '4 - High' },
+    { value: '5', label: '5 - Very High' },
   ];
 
   return (
@@ -93,7 +141,7 @@ const HealthLogForm = () => {
                   type="number"
                   step="0.5"
                   min="0"
-                  max="12"
+                  max="24"
                   placeholder="e.g., 7.5"
                   value={formData.sleep}
                   onChange={(e) => setFormData(prev => ({ ...prev, sleep: e.target.value }))}
@@ -130,48 +178,25 @@ const HealthLogForm = () => {
               </div>
             </div>
 
-            {/* Steps */}
+            {/* Exercise Minutes */}
             <div className="space-y-2">
-              <Label htmlFor="steps" className="text-sm font-medium text-gray-700">
-                Steps Walked
+              <Label htmlFor="exercise" className="text-sm font-medium text-gray-700">
+                Exercise Minutes
               </Label>
               <div className="relative">
                 <Input
-                  id="steps"
+                  id="exercise"
                   type="number"
                   min="0"
-                  max="50000"
-                  placeholder="e.g., 8000"
-                  value={formData.steps}
-                  onChange={(e) => setFormData(prev => ({ ...prev, steps: e.target.value }))}
+                  max="300"
+                  placeholder="e.g., 30"
+                  value={formData.exercise}
+                  onChange={(e) => setFormData(prev => ({ ...prev, exercise: e.target.value }))}
                   className="pl-10"
                   required
                 />
                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  👟
-                </div>
-              </div>
-            </div>
-
-            {/* Calories */}
-            <div className="space-y-2">
-              <Label htmlFor="calories" className="text-sm font-medium text-gray-700">
-                Calories Consumed
-              </Label>
-              <div className="relative">
-                <Input
-                  id="calories"
-                  type="number"
-                  min="0"
-                  max="5000"
-                  placeholder="e.g., 2000"
-                  value={formData.calories}
-                  onChange={(e) => setFormData(prev => ({ ...prev, calories: e.target.value }))}
-                  className="pl-10"
-                  required
-                />
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  🍎
+                  🏃
                 </div>
               </div>
             </div>
@@ -205,12 +230,30 @@ const HealthLogForm = () => {
                   <SelectValue placeholder="Select your mood" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Happy">😊 Happy</SelectItem>
-                  <SelectItem value="Energetic">⚡ Energetic</SelectItem>
-                  <SelectItem value="Normal">😐 Normal</SelectItem>
-                  <SelectItem value="Tired">😴 Tired</SelectItem>
-                  <SelectItem value="Stressed">😰 Stressed</SelectItem>
-                  <SelectItem value="Sad">😢 Sad</SelectItem>
+                  {moodLevels.map((mood) => (
+                    <SelectItem key={mood.value} value={mood.value}>
+                      {mood.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Energy Level */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">
+                Energy Level (1-5 scale)
+              </Label>
+              <Select value={formData.energy} onValueChange={(value) => setFormData(prev => ({ ...prev, energy: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select energy level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {energyLevels.map((level) => (
+                    <SelectItem key={level.value} value={level.value}>
+                      {level.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -218,8 +261,9 @@ const HealthLogForm = () => {
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-medium py-3"
+              disabled={loading}
             >
-              Log Health Data
+              {loading ? "Saving..." : "Log Health Data"}
             </Button>
           </form>
         </CardContent>

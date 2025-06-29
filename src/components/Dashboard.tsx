@@ -1,10 +1,13 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import HealthChart from './HealthChart';
 import HealthScore from './HealthScore';
 import MLSuggestions from './MLSuggestions';
 import NewUserWelcome from './NewUserWelcome';
+import { toast } from '@/hooks/use-toast';
 
 interface HealthData {
   date: string;
@@ -26,64 +29,80 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: Dashboard
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
   const [isNewUser, setIsNewUser] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  const loadHealthData = () => {
-    // Load existing data from localStorage
-    const savedData = localStorage.getItem('healthData');
-    if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      setHealthData(parsedData);
-      setIsNewUser(parsedData.length === 0);
-    } else {
-      // Don't generate sample data for new users
-      setHealthData([]);
-      setIsNewUser(true);
+  const loadHealthData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('health_data')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+
+      if (error) {
+        console.error('Error loading health data:', error);
+        toast({
+          title: "Error loading health data",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Transform the data to match the expected format
+      const transformedData = data.map(item => ({
+        date: item.date,
+        sleep: item.sleep_hours || 0,
+        water: item.water_intake || 0,
+        steps: item.exercise_minutes ? item.exercise_minutes * 100 : 0, // Convert minutes to approximate steps
+        calories: 2000, // Default calories since we don't have this field in DB
+        stress: item.stress_level || 3,
+        mood: item.mood ? getMoodText(item.mood) : 'Normal'
+      }));
+
+      setHealthData(transformedData);
+      setIsNewUser(transformedData.length === 0);
+    } catch (error) {
+      console.error('Error in loadHealthData:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load health data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const generateSampleData = (): HealthData[] => {
-    const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toISOString().split('T')[0],
-        sleep: Math.floor(Math.random() * 4) + 5, // 5-9 hours
-        water: Math.floor(Math.random() * 2) + 1.5, // 1.5-3.5 liters
-        steps: Math.floor(Math.random() * 5000) + 5000, // 5000-10000 steps
-        calories: Math.floor(Math.random() * 800) + 1500, // 1500-2300 calories
-        stress: Math.floor(Math.random() * 5) + 1, // 1-5
-        mood: ['Happy', 'Normal', 'Tired', 'Energetic'][Math.floor(Math.random() * 4)]
-      });
-    }
-    return data;
+  const getMoodText = (moodValue: number): string => {
+    const moodMap: { [key: number]: string } = {
+      1: 'Sad',
+      2: 'Tired',
+      3: 'Normal',
+      4: 'Happy',
+      5: 'Energetic'
+    };
+    return moodMap[moodValue] || 'Normal';
   };
 
   useEffect(() => {
-    loadHealthData();
-
-    // Listen for storage changes (when CSV data is uploaded)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'healthData' && e.newValue) {
-        const newData = JSON.parse(e.newValue);
-        setHealthData(newData);
-        setIsNewUser(newData.length === 0);
-      }
-    };
-
-    // Listen for custom events (for same-tab updates)
-    const handleDataUpdate = () => {
+    if (user) {
       loadHealthData();
-    };
+    }
+  }, [user]);
 
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('healthDataUpdated', handleDataUpdate);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('healthDataUpdated', handleDataUpdate);
-    };
-  }, []);
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
 
   // Show welcome screen for new users
   if (isNewUser && userName) {
