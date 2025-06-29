@@ -9,6 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { Upload, FileText, CheckCircle, ArrowRight, Download, Save, History } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCSVMappings } from '@/hooks/useCSVMappings';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import DataPreviewChart from './DataPreviewChart';
 
 interface CSVRow {
@@ -23,16 +25,6 @@ interface MappedData {
   exercise_minutes: number;
   stress_level: number;
   water_intake: number;
-}
-
-interface DashboardHealthData {
-  date: string;
-  sleep: number;
-  water: number;
-  steps: number;
-  calories: number;
-  stress: number;
-  mood: string;
 }
 
 interface ColumnMapping {
@@ -61,20 +53,8 @@ const CSVUploadSteps = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [processing, setProcessing] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
   const { savedMappings, saveMapping, findSimilarMapping } = useCSVMappings();
-
-  // Helper function to convert CSV data to dashboard format
-  const convertToDashboardFormat = (csvData: MappedData[]): DashboardHealthData[] => {
-    return csvData.map(item => ({
-      date: item.date,
-      sleep: item.sleep_hours,
-      water: item.water_intake,
-      steps: item.exercise_minutes * 100, // Convert exercise minutes to approximate steps
-      calories: 1800 + (item.energy * 50), // Estimate calories based on energy level
-      stress: item.stress_level,
-      mood: item.mood >= 8 ? 'Happy' : item.mood >= 6 ? 'Normal' : item.mood >= 4 ? 'Tired' : 'Sad'
-    }));
-  };
 
   const parseCSV = (text: string): { headers: string[], data: CSVRow[] } => {
     const lines = text.split('\n');
@@ -244,50 +224,69 @@ const CSVUploadSteps = () => {
   };
 
   const handleInsertData = async () => {
-    if (!insertChoice) return;
+    if (!insertChoice || !user) return;
     
     setProcessing(true);
     setCurrentStep(4);
     
     try {
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Starting data insertion to Supabase...');
       
-      // Convert CSV data to dashboard format
-      const dashboardData = convertToDashboardFormat(mappedData);
+      // Prepare data for Supabase insertion
+      const dataToInsert = mappedData.map(item => ({
+        user_id: user.id,
+        date: item.date,
+        mood: item.mood,
+        energy: item.energy,
+        sleep_hours: item.sleep_hours,
+        exercise_minutes: item.exercise_minutes,
+        stress_level: item.stress_level,
+        water_intake: item.water_intake
+      }));
+
+      let result;
       
-      // Get existing dashboard data
-      const existingDataStr = localStorage.getItem('healthData');
-      let existingData: DashboardHealthData[] = existingDataStr ? JSON.parse(existingDataStr) : [];
-      
-      let finalData: DashboardHealthData[] = [];
-      
-      switch (insertChoice) {
-        case 'merge':
-          // Merge data, keeping existing entries for same dates
-          const existingDates = new Set(existingData.map(d => d.date));
-          const newEntries = dashboardData.filter(d => !existingDates.has(d.date));
-          finalData = [...existingData, ...newEntries];
-          break;
+      if (insertChoice === 'overwrite') {
+        // First, get dates that will be overwritten
+        const datesToOverwrite = mappedData.map(d => d.date);
+        
+        // Delete existing entries for those dates
+        const { error: deleteError } = await supabase
+          .from('health_data')
+          .delete()
+          .eq('user_id', user.id)
+          .in('date', datesToOverwrite);
           
-        case 'overwrite':
-          // Replace entries for same dates, keep others
-          const csvDates = new Set(dashboardData.map(d => d.date));
-          const keptEntries = existingData.filter(d => !csvDates.has(d.date));
-          finalData = [...keptEntries, ...dashboardData];
-          break;
-          
-        case 'new':
-          // Keep existing data separate, just add new data
-          finalData = [...existingData, ...dashboardData];
-          break;
+        if (deleteError) {
+          console.error('Error deleting existing data:', deleteError);
+          throw deleteError;
+        }
+        
+        // Insert new data
+        result = await supabase
+          .from('health_data')
+          .insert(dataToInsert);
+      } else if (insertChoice === 'merge') {
+        // For merge, we'll use upsert functionality
+        result = await supabase
+          .from('health_data')
+          .upsert(dataToInsert, { 
+            onConflict: 'user_id,date',
+            ignoreDuplicates: false 
+          });
+      } else {
+        // For 'new', just insert all data
+        result = await supabase
+          .from('health_data')
+          .insert(dataToInsert);
       }
       
-      // Sort by date
-      finalData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (result.error) {
+        console.error('Error inserting data:', result.error);
+        throw result.error;
+      }
       
-      // Save to localStorage
-      localStorage.setItem('healthData', JSON.stringify(finalData));
+      console.log('Data successfully inserted to Supabase');
       
       toast({
         title: '✅ Data uploaded successfully!',
@@ -295,10 +294,11 @@ const CSVUploadSteps = () => {
       });
       
       setCurrentStep(5);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Upload failed:', error);
       toast({
         title: 'Upload failed',
-        description: 'Could not save your data',
+        description: error.message || 'Could not save your data',
         variant: 'destructive'
       });
       setCurrentStep(3);
@@ -529,7 +529,7 @@ const CSVUploadSteps = () => {
                     />
                     <div>
                       <div className="font-medium">🔄 Merge into existing dashboard</div>
-                      <div className="text-sm text-gray-500">Add to your current health data</div>
+                      <div className="text-sm text-gray-500">Add to your current health data, skip duplicates</div>
                     </div>
                   </label>
                   
@@ -542,8 +542,8 @@ const CSVUploadSteps = () => {
                       onChange={(e) => setInsertChoice(e.target.value as 'merge' | 'new' | 'overwrite')}
                     />
                     <div>
-                      <div className="font-medium">➕ Create new dashboard section</div>
-                      <div className="text-sm text-gray-500">Keep this data separate</div>
+                      <div className="font-medium">➕ Add all data to dashboard</div>
+                      <div className="text-sm text-gray-500">Insert all data without checking for duplicates</div>
                     </div>
                   </label>
                   
@@ -613,14 +613,14 @@ const CSVUploadSteps = () => {
               ✅ Upload Complete!
             </CardTitle>
             <CardDescription>
-              Your health data has been successfully imported and analyzed
+              Your health data has been successfully imported and saved to your dashboard
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="p-4 bg-green-50 rounded-lg">
                 <p className="text-green-800 font-medium">
-                  🎉 {mappedData.length} new entries added. Your dashboard will refresh automatically!
+                  🎉 {mappedData.length} new entries added. Go to your dashboard to see the updated data!
                 </p>
               </div>
               
