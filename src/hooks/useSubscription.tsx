@@ -38,7 +38,7 @@ interface SubscriptionProviderProps {
 export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) => {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
   const refreshSubscription = async () => {
     if (!user) {
@@ -85,25 +85,58 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
   };
 
   const createRazorpayOrder = async (plan: string): Promise<any> => {
-    if (!user) throw new Error('User not authenticated');
+    if (!user || !session) {
+      throw new Error('User not authenticated');
+    }
 
-    const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
-      body: { plan }
-    });
+    console.log('Creating Razorpay order with session:', !!session);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+        body: { plan },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to create order');
+      }
+      
+      console.log('Order creation response:', data);
+      return data;
+    } catch (error: any) {
+      console.error('Error in createRazorpayOrder:', error);
+      throw error;
+    }
   };
 
   const verifyPayment = async (paymentData: any) => {
-    if (!user) throw new Error('User not authenticated');
+    if (!user || !session) {
+      throw new Error('User not authenticated');
+    }
 
-    const { error } = await supabase.functions.invoke('verify-razorpay-payment', {
-      body: paymentData
-    });
+    console.log('Verifying payment with session:', !!session);
+    
+    try {
+      const { error } = await supabase.functions.invoke('verify-razorpay-payment', {
+        body: paymentData,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
 
-    if (error) throw error;
-    await refreshSubscription();
+      if (error) {
+        console.error('Payment verification error:', error);
+        throw new Error(error.message || 'Payment verification failed');
+      }
+      
+      await refreshSubscription();
+    } catch (error: any) {
+      console.error('Error in verifyPayment:', error);
+      throw error;
+    }
   };
 
   useEffect(() => {
