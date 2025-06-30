@@ -68,8 +68,8 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
           payment_status: data.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
           start_date: data.start_date,
           end_date: data.end_date,
-          razorpay_payment_id: data.razorpay_payment_id,
-          razorpay_order_id: data.razorpay_order_id
+          razorpay_payment_id: data.razorpay_payment_id || null,
+          razorpay_order_id: data.razorpay_order_id || null
         };
         setSubscription(typedSubscription);
       } else {
