@@ -8,8 +8,8 @@ CREATE TABLE public.subscriptions (
   end_date TIMESTAMP WITH TIME ZONE,
   payment_status TEXT CHECK (payment_status IN ('pending', 'active', 'cancelled', 'expired')) NOT NULL DEFAULT 'pending',
   payment_method TEXT,
-  stripe_customer_id TEXT,
-  stripe_subscription_id TEXT,
+  razorpay_payment_id TEXT,
+  razorpay_order_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );

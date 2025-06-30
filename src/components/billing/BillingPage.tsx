@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/components/ui/use-toast';
@@ -7,13 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import PricingCard from './PricingCard';
-import { Calendar, CreditCard, Settings } from 'lucide-react';
+import { Calendar, CreditCard } from 'lucide-react';
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 const BillingPage = () => {
-  const { subscription, loading, createCheckoutSession, createCustomerPortalSession } = useSubscription();
+  const { subscription, loading, createRazorpayOrder, verifyPayment } = useSubscription();
   const { toast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const [portalLoading, setPortalLoading] = useState(false);
 
   const plans = [
     {
@@ -78,37 +82,82 @@ const BillingPage = () => {
     }
   ];
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handlePlanSelect = async (planId: string) => {
     if (planId === 'free') return;
     
     setCheckoutLoading(planId);
+    
     try {
-      const url = await createCheckoutSession(planId);
-      window.open(url, '_blank');
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        throw new Error('Failed to load Razorpay SDK');
+      }
+
+      const orderData = await createRazorpayOrder(planId);
+      
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'AuraX Premium',
+        description: `${planId.charAt(0).toUpperCase() + planId.slice(1)} Plan Subscription`,
+        order_id: orderData.orderId,
+        handler: async (response: any) => {
+          try {
+            await verifyPayment({
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              plan: planId
+            });
+            
+            toast({
+              title: 'Payment Successful!',
+              description: 'Your subscription has been activated.',
+            });
+          } catch (error: any) {
+            toast({
+              title: 'Payment Verification Failed',
+              description: error.message || 'Please contact support',
+              variant: 'destructive'
+            });
+          }
+        },
+        prefill: {
+          email: 'user@example.com',
+          contact: '9999999999'
+        },
+        theme: {
+          color: '#06b6d4'
+        },
+        method: {
+          upi: true,
+          card: false,
+          netbanking: false,
+          wallet: false
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create checkout session',
+        description: error.message || 'Failed to initiate payment',
         variant: 'destructive'
       });
     } finally {
       setCheckoutLoading(null);
-    }
-  };
-
-  const handleManageSubscription = async () => {
-    setPortalLoading(true);
-    try {
-      const url = await createCustomerPortalSession();
-      window.open(url, '_blank');
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to open customer portal',
-        variant: 'destructive'
-      });
-    } finally {
-      setPortalLoading(false);
     }
   };
 
@@ -173,21 +222,9 @@ const BillingPage = () => {
               {subscription.end_date && (
                 <div className="flex items-center gap-2 text-gray-600">
                   <Calendar className="h-4 w-4" />
-                  <span>Renews on {formatDate(subscription.end_date)}</span>
+                  <span>Valid until {formatDate(subscription.end_date)}</span>
                 </div>
               )}
-              
-              <Separator />
-              
-              <Button 
-                onClick={handleManageSubscription}
-                disabled={portalLoading}
-                variant="outline"
-                className="w-full"
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                {portalLoading ? 'Loading...' : 'Manage Subscription'}
-              </Button>
             </CardContent>
           </Card>
         )}
@@ -217,8 +254,8 @@ const BillingPage = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <h3 className="font-semibold mb-2">Can I change my plan anytime?</h3>
-              <p className="text-gray-600">Yes, you can upgrade or downgrade your plan at any time. Changes will be prorated automatically.</p>
+              <h3 className="font-semibold mb-2">What payment methods do you accept?</h3>
+              <p className="text-gray-600">We accept UPI payments through Razorpay, including Google Pay, PhonePe, Paytm, and all major UPI apps.</p>
             </div>
             <Separator />
             <div>
@@ -227,8 +264,8 @@ const BillingPage = () => {
             </div>
             <Separator />
             <div>
-              <h3 className="font-semibold mb-2">What payment methods do you accept?</h3>
-              <p className="text-gray-600">We accept all major credit cards, debit cards, UPI, and net banking through our secure payment partner Stripe.</p>
+              <h3 className="font-semibold mb-2">Can I cancel my subscription?</h3>
+              <p className="text-gray-600">Yes, you can cancel your subscription at any time. Your premium access will continue until the end of your billing period.</p>
             </div>
           </CardContent>
         </Card>

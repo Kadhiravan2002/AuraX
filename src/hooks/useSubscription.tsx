@@ -9,17 +9,16 @@ interface Subscription {
   payment_status: 'pending' | 'active' | 'cancelled' | 'expired';
   start_date: string;
   end_date: string | null;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
+  razorpay_payment_id: string | null;
+  razorpay_order_id: string | null;
 }
 
 interface SubscriptionContextType {
   subscription: Subscription | null;
   loading: boolean;
   refreshSubscription: () => Promise<void>;
-  createCheckoutSession: (plan: string) => Promise<string>;
-  cancelSubscription: () => Promise<void>;
-  createCustomerPortalSession: () => Promise<string>;
+  createRazorpayOrder: (plan: string) => Promise<any>;
+  verifyPayment: (paymentData: any) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -63,15 +62,14 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
       }
 
       if (data) {
-        // Cast the data to match our Subscription interface
         const typedSubscription: Subscription = {
           id: data.id,
           plan: data.plan as 'free' | 'quarterly' | 'halfyearly' | 'annual',
           payment_status: data.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
           start_date: data.start_date,
           end_date: data.end_date,
-          stripe_customer_id: data.stripe_customer_id,
-          stripe_subscription_id: data.stripe_subscription_id
+          razorpay_payment_id: data.razorpay_payment_id,
+          razorpay_order_id: data.razorpay_order_id
         };
         setSubscription(typedSubscription);
       } else {
@@ -84,33 +82,26 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     }
   };
 
-  const createCheckoutSession = async (plan: string): Promise<string> => {
+  const createRazorpayOrder = async (plan: string): Promise<any> => {
     if (!user) throw new Error('User not authenticated');
 
-    const { data, error } = await supabase.functions.invoke('create-checkout', {
+    const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
       body: { plan }
     });
 
     if (error) throw error;
-    return data.url;
+    return data;
   };
 
-  const cancelSubscription = async () => {
-    if (!user || !subscription) throw new Error('No active subscription');
-
-    const { error } = await supabase.functions.invoke('cancel-subscription');
-    if (error) throw error;
-    
-    await refreshSubscription();
-  };
-
-  const createCustomerPortalSession = async (): Promise<string> => {
+  const verifyPayment = async (paymentData: any) => {
     if (!user) throw new Error('User not authenticated');
 
-    const { data, error } = await supabase.functions.invoke('customer-portal');
+    const { error } = await supabase.functions.invoke('verify-razorpay-payment', {
+      body: paymentData
+    });
+
     if (error) throw error;
-    
-    return data.url;
+    await refreshSubscription();
   };
 
   useEffect(() => {
@@ -121,9 +112,8 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     subscription,
     loading,
     refreshSubscription,
-    createCheckoutSession,
-    cancelSubscription,
-    createCustomerPortalSession
+    createRazorpayOrder,
+    verifyPayment
   };
 
   return (
