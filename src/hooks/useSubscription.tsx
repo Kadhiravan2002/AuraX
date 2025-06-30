@@ -62,14 +62,16 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
       }
 
       if (data) {
+        // Type assertion to handle the fact that the database now has Razorpay fields
+        const rawData = data as any;
         const typedSubscription: Subscription = {
-          id: data.id,
-          plan: data.plan as 'free' | 'quarterly' | 'halfyearly' | 'annual',
-          payment_status: data.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
-          start_date: data.start_date,
-          end_date: data.end_date,
-          razorpay_payment_id: data.razorpay_payment_id || null,
-          razorpay_order_id: data.razorpay_order_id || null
+          id: rawData.id,
+          plan: rawData.plan as 'free' | 'quarterly' | 'halfyearly' | 'annual',
+          payment_status: rawData.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
+          start_date: rawData.start_date,
+          end_date: rawData.end_date,
+          razorpay_payment_id: rawData.razorpay_payment_id || null,
+          razorpay_order_id: rawData.razorpay_order_id || null
         };
         setSubscription(typedSubscription);
       } else {
