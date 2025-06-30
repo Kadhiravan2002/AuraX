@@ -3,6 +3,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { shouldGrantPremiumAccess } from '@/utils/premiumWhitelist';
+import { toast } from '@/components/ui/use-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -34,6 +35,49 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for email verification on page load
+    const checkEmailVerification = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+      const refreshToken = urlParams.get('refresh_token');
+      const type = urlParams.get('type');
+
+      if (type === 'email_confirmation' || type === 'signup') {
+        if (accessToken && refreshToken) {
+          // Set the session with the tokens from the URL
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          }).then(({ data, error }) => {
+            if (error) {
+              console.error('Error setting session:', error);
+              toast({
+                title: "Verification Error",
+                description: "There was an issue verifying your email. Please try again.",
+                variant: "destructive"
+              });
+            } else {
+              toast({
+                title: "Email Verified!",
+                description: "Welcome to AuraX! Your email has been successfully verified.",
+              });
+              // Clean up the URL parameters
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          });
+        } else {
+          // Handle case where user clicks verification link but is already verified
+          toast({
+            title: "Email already verified",
+            description: "Welcome back to AuraX.",
+          });
+        }
+      }
+    };
+
+    // Check for verification on mount
+    checkEmailVerification();
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -41,6 +85,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Handle email confirmation event
+        if (event === 'SIGNED_IN' && session?.user) {
+          const urlParams = new URLSearchParams(window.location.search);
+          const type = urlParams.get('type');
+          
+          if (type === 'email_confirmation' || type === 'signup') {
+            toast({
+              title: "Email Verified!",
+              description: "Welcome to AuraX! Your email has been successfully verified.",
+            });
+            // Clean up the URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
 
         // Auto-grant premium access for whitelisted users on login
         if (event === 'SIGNED_IN' && session?.user?.email) {
@@ -72,9 +131,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    // Use the current domain instead of localhost
-    const currentDomain = window.location.origin;
-    const redirectUrl = `${currentDomain}/`;
+    // Use the production domain for redirect
+    const redirectUrl = 'https://aurax-track.lovable.app/';
     
     const { error } = await supabase.auth.signUp({
       email,
@@ -102,8 +160,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const resendConfirmation = async (email: string) => {
-    const currentDomain = window.location.origin;
-    const redirectUrl = `${currentDomain}/`;
+    // Use the production domain for redirect
+    const redirectUrl = 'https://aurax-track.lovable.app/';
     
     const { error } = await supabase.auth.resend({
       type: 'signup',
