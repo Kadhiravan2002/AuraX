@@ -1,3 +1,4 @@
+
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -30,8 +31,32 @@ const Index = () => {
     );
   }
 
-  // Show auth page if user is not authenticated
-  if (!user || !session) {
+  // Show auth page if user is not authenticated or email not confirmed
+  if (!user || !session || (user && !user.email_confirmed_at)) {
+    if (user && !user.email_confirmed_at) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                📧
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+              <p className="text-gray-600">
+                We've sent a verification link to <strong>{user.email}</strong>. 
+                Please click the link in your email to verify your account and continue.
+              </p>
+            </div>
+            <button
+              onClick={signOut}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Use a different email
+            </button>
+          </div>
+        </div>
+      );
+    }
     return <AuthPage />;
   }
 

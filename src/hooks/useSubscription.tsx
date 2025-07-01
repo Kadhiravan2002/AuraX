@@ -38,7 +38,7 @@ interface SubscriptionProviderProps {
 export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) => {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user, session } = useAuth();
+  const { user } = useAuth();
 
   const refreshSubscription = async () => {
     if (!user) {
@@ -62,16 +62,14 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
       }
 
       if (data) {
-        // Type assertion to handle the fact that the database now has Razorpay fields
-        const rawData = data as any;
         const typedSubscription: Subscription = {
-          id: rawData.id,
-          plan: rawData.plan as 'free' | 'quarterly' | 'halfyearly' | 'annual',
-          payment_status: rawData.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
-          start_date: rawData.start_date,
-          end_date: rawData.end_date,
-          razorpay_payment_id: rawData.razorpay_payment_id || null,
-          razorpay_order_id: rawData.razorpay_order_id || null
+          id: data.id,
+          plan: data.plan as 'free' | 'quarterly' | 'halfyearly' | 'annual',
+          payment_status: data.payment_status as 'pending' | 'active' | 'cancelled' | 'expired',
+          start_date: data.start_date,
+          end_date: data.end_date,
+          razorpay_payment_id: data.razorpay_payment_id,
+          razorpay_order_id: data.razorpay_order_id
         };
         setSubscription(typedSubscription);
       } else {
@@ -85,58 +83,25 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
   };
 
   const createRazorpayOrder = async (plan: string): Promise<any> => {
-    if (!user || !session) {
-      throw new Error('User not authenticated');
-    }
+    if (!user) throw new Error('User not authenticated');
 
-    console.log('Creating Razorpay order with session:', !!session);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
-        body: { plan },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
+    const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+      body: { plan }
+    });
 
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to create order');
-      }
-      
-      console.log('Order creation response:', data);
-      return data;
-    } catch (error: any) {
-      console.error('Error in createRazorpayOrder:', error);
-      throw error;
-    }
+    if (error) throw error;
+    return data;
   };
 
   const verifyPayment = async (paymentData: any) => {
-    if (!user || !session) {
-      throw new Error('User not authenticated');
-    }
+    if (!user) throw new Error('User not authenticated');
 
-    console.log('Verifying payment with session:', !!session);
-    
-    try {
-      const { error } = await supabase.functions.invoke('verify-razorpay-payment', {
-        body: paymentData,
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
+    const { error } = await supabase.functions.invoke('verify-razorpay-payment', {
+      body: paymentData
+    });
 
-      if (error) {
-        console.error('Payment verification error:', error);
-        throw new Error(error.message || 'Payment verification failed');
-      }
-      
-      await refreshSubscription();
-    } catch (error: any) {
-      console.error('Error in verifyPayment:', error);
-      throw error;
-    }
+    if (error) throw error;
+    await refreshSubscription();
   };
 
   useEffect(() => {

@@ -3,7 +3,6 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { shouldGrantPremiumAccess } from '@/utils/premiumWhitelist';
-import { toast } from '@/components/ui/use-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -12,6 +11,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  resendConfirmation: (email: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -72,31 +72,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: fullName ? { full_name: fullName } : undefined
-        }
-      });
-      
-      if (error) {
-        return { error };
+    // Use the current domain instead of localhost
+    const currentDomain = window.location.origin;
+    const redirectUrl = `${currentDomain}/`;
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: fullName ? { full_name: fullName } : undefined
       }
-      
-      // If user is created but no session (email confirmation disabled case)
-      if (data.user && !data.session) {
-        console.log('User created, attempting automatic sign in...');
-        // Wait a moment for the user to be fully created
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return await signIn(email, password);
-      }
-      
-      return { error: null };
-    } catch (error: any) {
-      return { error };
-    }
+    });
+    
+    return { error };
   };
 
   const signIn = async (email: string, password: string) => {
@@ -112,13 +101,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     await supabase.auth.signOut();
   };
 
+  const resendConfirmation = async (email: string) => {
+    const currentDomain = window.location.origin;
+    const redirectUrl = `${currentDomain}/`;
+    
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
+    });
+    
+    return { error };
+  };
+
   const value = {
     user,
     session,
     loading,
     signUp,
     signIn,
-    signOut
+    signOut,
+    resendConfirmation
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
