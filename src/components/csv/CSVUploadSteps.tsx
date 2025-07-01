@@ -56,16 +56,44 @@ const CSVUploadSteps = () => {
   const { user } = useAuth();
   const { savedMappings, saveMapping, findSimilarMapping } = useCSVMappings();
 
+  // Enhanced CSV parsing with better handling of quoted fields and decimal numbers
   const parseCSV = (text: string): { headers: string[], data: CSVRow[] } => {
-    const lines = text.split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    console.log('Starting CSV parsing...');
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    // Parse CSV line with proper handling of quoted fields
+    const parseLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      return result;
+    };
+
+    const headers = parseLine(lines[0]);
+    console.log('CSV Headers:', headers);
+    
     const data: CSVRow[] = [];
     
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
       
-      const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+      const values = parseLine(line);
       const row: CSVRow = {};
       
       headers.forEach((header, index) => {
@@ -75,7 +103,39 @@ const CSVUploadSteps = () => {
       data.push(row);
     }
     
+    console.log(`Parsed ${data.length} data rows`);
     return { headers, data };
+  };
+
+  // Enhanced number parsing with support for different decimal formats
+  const parseNumber = (value: string, fieldName: string): number => {
+    if (!value || value.trim() === '') {
+      throw new Error(`Missing value for ${fieldName}`);
+    }
+
+    // Clean the value - remove spaces and handle different decimal separators
+    let cleanValue = value.trim();
+    
+    // Log the original value for debugging
+    console.log(`Parsing ${fieldName}: "${value}" -> "${cleanValue}"`);
+    
+    // Handle European format (comma as decimal separator) if no dot is present
+    if (cleanValue.includes(',') && !cleanValue.includes('.')) {
+      cleanValue = cleanValue.replace(',', '.');
+      console.log(`Converted decimal separator: "${cleanValue}"`);
+    }
+    
+    // Remove any non-numeric characters except dots and minus signs
+    cleanValue = cleanValue.replace(/[^\d.-]/g, '');
+    
+    const numValue = parseFloat(cleanValue);
+    
+    if (isNaN(numValue)) {
+      throw new Error(`Invalid number format for ${fieldName}: "${value}". Expected decimal number like 1.5 or 2.3`);
+    }
+    
+    console.log(`Successfully parsed ${fieldName}: ${numValue}`);
+    return numValue;
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,9 +181,10 @@ const CSVUploadSteps = () => {
       setColumnMapping(autoMapping);
       
     } catch (error) {
+      console.error('CSV parsing error:', error);
       toast({
         title: 'Error parsing CSV',
-        description: 'Could not read the CSV file',
+        description: 'Could not read the CSV file. Please check the file format.',
         variant: 'destructive'
       });
     }
@@ -151,6 +212,7 @@ const CSVUploadSteps = () => {
       return;
     }
 
+    console.log('Starting data validation and transformation...');
     const transformed: MappedData[] = [];
     const errors: string[] = [];
     
@@ -162,31 +224,33 @@ const CSVUploadSteps = () => {
           const csvColumn = columnMapping[field.key];
           const value = row[csvColumn];
           
-          if (!value || value.trim() === '') {
-            throw new Error(`Missing ${field.label} in row ${index + 1}`);
-          }
-          
           if (field.type === 'number') {
-            const numValue = parseFloat(value);
-            if (isNaN(numValue)) {
-              throw new Error(`Invalid ${field.label} in row ${index + 1}: ${value}`);
+            try {
+              mappedRow[field.key] = parseNumber(value, field.label);
+            } catch (parseError: any) {
+              throw new Error(`Row ${index + 1}: ${parseError.message}`);
             }
-            mappedRow[field.key] = numValue;
           } else {
-            mappedRow[field.key] = value;
+            if (!value || value.trim() === '') {
+              throw new Error(`Row ${index + 1}: Missing ${field.label}`);
+            }
+            mappedRow[field.key] = value.trim();
           }
         });
         
         transformed.push(mappedRow);
+        console.log(`Row ${index + 1} successfully validated:`, mappedRow);
       } catch (error: any) {
+        console.error(`Validation error for row ${index + 1}:`, error.message);
         errors.push(error.message);
       }
     });
     
     if (errors.length > 0 && errors.length === csvData.length) {
+      console.error('All rows failed validation:', errors);
       toast({
         title: 'Data validation failed',
-        description: `All rows have issues. Please check your column mappings.`,
+        description: `All rows have formatting issues. Please check your CSV file format and decimal numbers.`,
         variant: 'destructive'
       });
       return;
@@ -215,10 +279,16 @@ const CSVUploadSteps = () => {
     setCurrentStep(3);
     
     if (errors.length > 0) {
+      console.log(`${errors.length} rows had validation issues and were skipped`);
       toast({
         title: 'Some rows skipped',
-        description: `${errors.length} rows had issues and were skipped.`,
+        description: `${errors.length} rows had formatting issues and were skipped. Check console for details.`,
         variant: 'destructive'
+      });
+    } else {
+      toast({
+        title: 'Validation successful!',
+        description: `All ${transformed.length} rows validated successfully with decimal values.`,
       });
     }
   };
@@ -247,10 +317,8 @@ const CSVUploadSteps = () => {
       let result;
       
       if (insertChoice === 'overwrite') {
-        // First, get dates that will be overwritten
         const datesToOverwrite = mappedData.map(d => d.date);
         
-        // Delete existing entries for those dates
         const { error: deleteError } = await supabase
           .from('health_data')
           .delete()
@@ -262,12 +330,10 @@ const CSVUploadSteps = () => {
           throw deleteError;
         }
         
-        // Insert new data
         result = await supabase
           .from('health_data')
           .insert(dataToInsert);
       } else if (insertChoice === 'merge') {
-        // For merge, we'll use upsert functionality
         result = await supabase
           .from('health_data')
           .upsert(dataToInsert, { 
@@ -275,7 +341,6 @@ const CSVUploadSteps = () => {
             ignoreDuplicates: false 
           });
       } else {
-        // For 'new', just insert all data
         result = await supabase
           .from('health_data')
           .insert(dataToInsert);
@@ -290,7 +355,7 @@ const CSVUploadSteps = () => {
       
       toast({
         title: '✅ Data uploaded successfully!',
-        description: `${mappedData.length} entries added to your dashboard`,
+        description: `${mappedData.length} entries with decimal values added to your dashboard`,
       });
       
       setCurrentStep(5);
@@ -361,7 +426,7 @@ const CSVUploadSteps = () => {
           <CardHeader>
             <CardTitle>📥 Step 1: Upload Your CSV File</CardTitle>
             <CardDescription>
-              Upload your health data CSV file. We'll automatically detect the structure and suggest mappings.
+              Upload your health data CSV file. We support decimal values like 1.5, 2.3, etc. for sleep hours and other metrics.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -375,6 +440,9 @@ const CSVUploadSteps = () => {
               />
               <p className="text-sm text-gray-500 mb-2">
                 Select a CSV file with your health data
+              </p>
+              <p className="text-xs text-gray-400">
+                ✅ Supports decimal values (1.5, 2.3) • ✅ Handles quoted fields • ✅ Multiple formats
               </p>
               {savedMappings.length > 0 && (
                 <div className="flex items-center justify-center gap-2 mt-4">
@@ -395,7 +463,7 @@ const CSVUploadSteps = () => {
           <CardHeader>
             <CardTitle>🔁 Step 2: Map Your Columns</CardTitle>
             <CardDescription>
-              Match your CSV columns to our internal fields for analysis
+              Match your CSV columns to our internal fields. Decimal values like 1.5 hours are fully supported.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -482,7 +550,7 @@ const CSVUploadSteps = () => {
           <CardHeader>
             <CardTitle>🧠 Step 3: Data Analysis Complete</CardTitle>
             <CardDescription>
-              Your data has been cleaned and analyzed. Choose how to save it.
+              Your data has been cleaned and analyzed. Decimal values have been properly processed.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -591,7 +659,7 @@ const CSVUploadSteps = () => {
           <CardHeader>
             <CardTitle>⏳ Processing Your Data...</CardTitle>
             <CardDescription>
-              Saving and analyzing your health data
+              Saving and analyzing your health data with decimal precision
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -613,7 +681,7 @@ const CSVUploadSteps = () => {
               ✅ Upload Complete!
             </CardTitle>
             <CardDescription>
-              Your health data has been successfully imported and saved to your dashboard
+              Your health data has been successfully imported with all decimal values preserved
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -648,7 +716,7 @@ const CSVUploadSteps = () => {
           <DialogHeader>
             <DialogTitle>📊 Data Preview Charts</DialogTitle>
             <DialogDescription>
-              Preview of your health data trends before saving
+              Preview of your health data trends with decimal precision
             </DialogDescription>
           </DialogHeader>
           <DataPreviewChart data={mappedData} />
