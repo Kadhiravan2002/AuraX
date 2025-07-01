@@ -12,7 +12,6 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  resendConfirmation: (email: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -73,13 +72,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: fullName ? { full_name: fullName } : undefined
       }
     });
+    
+    // If signup is successful but user is not confirmed (due to email confirmation being disabled),
+    // we should automatically sign them in
+    if (!error && data.user && !data.session) {
+      console.log('User created but not confirmed, attempting sign in...');
+      const signInResult = await signIn(email, password);
+      return signInResult;
+    }
     
     return { error };
   };
@@ -97,23 +104,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     await supabase.auth.signOut();
   };
 
-  const resendConfirmation = async (email: string) => {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email
-    });
-    
-    return { error };
-  };
-
   const value = {
     user,
     session,
     loading,
     signUp,
     signIn,
-    signOut,
-    resendConfirmation
+    signOut
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

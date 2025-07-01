@@ -55,9 +55,8 @@ const AuthPage = () => {
         } else {
           toast({
             title: "Account created successfully!",
-            description: "You can now sign in with your credentials.",
+            description: "You are now signed in and ready to use AuraX.",
           });
-          setIsLogin(true);
         }
       }
     } catch (error: any) {
