@@ -16,9 +16,8 @@ const AuthPage = () => {
     fullName: '',
     confirmPassword: ''
   });
-  const [showResendConfirmation, setShowResendConfirmation] = useState(false);
 
-  const { signUp, signIn, resendConfirmation } = useAuth();
+  const { signUp, signIn } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,20 +38,11 @@ const AuthPage = () => {
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
-          if (error.message.includes('Email not confirmed')) {
-            setShowResendConfirmation(true);
-            toast({
-              title: "Email not verified",
-              description: "Please check your email and click the verification link, or resend confirmation.",
-              variant: "destructive"
-            });
-          } else {
-            toast({
-              title: "Sign in failed",
-              description: error.message,
-              variant: "destructive"
-            });
-          }
+          toast({
+            title: "Sign in failed",
+            description: error.message,
+            variant: "destructive"
+          });
         }
       } else {
         const { error } = await signUp(formData.email, formData.password, formData.fullName);
@@ -64,9 +54,10 @@ const AuthPage = () => {
           });
         } else {
           toast({
-            title: "Check your email",
-            description: "We've sent you a verification link to complete your registration.",
+            title: "Account created successfully!",
+            description: "You can now sign in with your credentials.",
           });
+          setIsLogin(true);
         }
       }
     } catch (error: any) {
@@ -78,26 +69,6 @@ const AuthPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleResendConfirmation = async () => {
-    setIsLoading(true);
-    const { error } = await resendConfirmation(formData.email);
-    
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "Confirmation sent",
-        description: "We've sent you a new verification link.",
-      });
-      setShowResendConfirmation(false);
-    }
-    setIsLoading(false);
   };
 
   return (
@@ -234,30 +205,11 @@ const AuthPage = () => {
                   {isLoading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
                 </Button>
               </form>
-
-              {showResendConfirmation && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-sm text-yellow-800 mb-2">
-                    Need to resend the verification email?
-                  </p>
-                  <Button
-                    onClick={handleResendConfirmation}
-                    variant="outline"
-                    size="sm"
-                    disabled={isLoading}
-                  >
-                    Resend Confirmation
-                  </Button>
-                </div>
-              )}
               
               <div className="mt-4 text-center">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsLogin(!isLogin);
-                    setShowResendConfirmation(false);
-                  }}
+                  onClick={() => setIsLogin(!isLogin)}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   {isLogin 
