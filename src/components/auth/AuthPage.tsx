@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,7 +54,7 @@ const AuthPage = () => {
         } else {
           toast({
             title: "Account created successfully!",
-            description: "You are now signed in and ready to use AuraX.",
+            description: "Welcome to AuraX! You are now signed in.",
           });
         }
       }

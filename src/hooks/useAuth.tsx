@@ -72,23 +72,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: fullName ? { full_name: fullName } : undefined
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: fullName ? { full_name: fullName } : undefined
+        }
+      });
+      
+      if (error) {
+        return { error };
       }
-    });
-    
-    // If signup is successful but user is not confirmed (due to email confirmation being disabled),
-    // we should automatically sign them in
-    if (!error && data.user && !data.session) {
-      console.log('User created but not confirmed, attempting sign in...');
-      const signInResult = await signIn(email, password);
-      return signInResult;
+      
+      // If user is created but no session (email confirmation disabled case)
+      if (data.user && !data.session) {
+        console.log('User created, attempting automatic sign in...');
+        // Wait a moment for the user to be fully created
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return await signIn(email, password);
+      }
+      
+      return { error: null };
+    } catch (error: any) {
+      return { error };
     }
-    
-    return { error };
   };
 
   const signIn = async (email: string, password: string) => {
