@@ -86,6 +86,8 @@ export type Database = {
           payment_method: string | null
           payment_status: string
           plan: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
           start_date: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -99,6 +101,8 @@ export type Database = {
           payment_method?: string | null
           payment_status?: string
           plan?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
           start_date?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -112,6 +116,8 @@ export type Database = {
           payment_method?: string | null
           payment_status?: string
           plan?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
           start_date?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null

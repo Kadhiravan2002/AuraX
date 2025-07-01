@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ declare global {
 
 const BillingPage = () => {
   const { subscription, loading, createRazorpayOrder, verifyPayment } = useSubscription();
+  const { user, session } = useAuth();
   const { toast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
@@ -95,6 +97,16 @@ const BillingPage = () => {
   const handlePlanSelect = async (planId: string) => {
     if (planId === 'free') return;
     
+    // Check if user is authenticated
+    if (!user || !session) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please log in to subscribe to a plan.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     setCheckoutLoading(planId);
     
     try {
@@ -103,7 +115,11 @@ const BillingPage = () => {
         throw new Error('Failed to load Razorpay SDK');
       }
 
+      console.log('Creating Razorpay order for plan:', planId);
+      console.log('User authenticated:', !!user, 'Session exists:', !!session);
+      
       const orderData = await createRazorpayOrder(planId);
+      console.log('Order created successfully:', orderData);
       
       const options = {
         key: orderData.keyId,
@@ -114,6 +130,7 @@ const BillingPage = () => {
         order_id: orderData.orderId,
         handler: async (response: any) => {
           try {
+            console.log('Payment successful, verifying:', response);
             await verifyPayment({
               paymentId: response.razorpay_payment_id,
               orderId: response.razorpay_order_id,
@@ -126,6 +143,7 @@ const BillingPage = () => {
               description: 'Your subscription has been activated.',
             });
           } catch (error: any) {
+            console.error('Payment verification failed:', error);
             toast({
               title: 'Payment Verification Failed',
               description: error.message || 'Please contact support',
@@ -134,7 +152,7 @@ const BillingPage = () => {
           }
         },
         prefill: {
-          email: 'user@example.com',
+          email: user.email || 'user@example.com',
           contact: '9999999999'
         },
         theme: {
@@ -151,6 +169,7 @@ const BillingPage = () => {
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error: any) {
+      console.error('Error in handlePlanSelect:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to initiate payment',
@@ -182,6 +201,27 @@ const BillingPage = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
+
+  // Show message if user is not authenticated
+  if (!user || !session) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <Card className="max-w-md w-full text-center">
+          <CardHeader>
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>
+              Please log in to view billing options and manage your subscription.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => window.location.href = '/'}>
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
