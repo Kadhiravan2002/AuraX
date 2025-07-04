@@ -47,7 +47,12 @@ export const useHealthAlerts = () => {
       }
 
       console.log('Fetched health alerts:', data);
-      setAlerts(data || []);
+      // Type cast the data to match our interface
+      const typedAlerts = (data || []).map(alert => ({
+        ...alert,
+        alert_type: alert.alert_type as 'sleep_deficiency' | 'high_stress'
+      }));
+      setAlerts(typedAlerts);
     } catch (error) {
       console.error('Error in fetchAlerts:', error);
       toast({
