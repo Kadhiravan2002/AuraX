@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      health_alerts: {
+        Row: {
+          alert_message: string
+          alert_type: string
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          triggered_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_message: string
+          alert_type: string
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          triggered_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_message?: string
+          alert_type?: string
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          triggered_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       health_data: {
         Row: {
           created_at: string

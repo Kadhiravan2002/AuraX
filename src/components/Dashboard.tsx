@@ -6,6 +6,7 @@ import HealthChart from './HealthChart';
 import HealthScore from './HealthScore';
 import MLSuggestions from './MLSuggestions';
 import NewUserWelcome from './NewUserWelcome';
+import HealthAlerts from './HealthAlerts';
 import { toast } from '@/hooks/use-toast';
 
 interface HealthData {
@@ -22,7 +23,7 @@ interface DashboardProps {
   onStartCSVUpload?: () => void;
   onStartManualEntry?: () => void;
   userName?: string;
-  refreshTrigger?: number; // Add refresh trigger prop
+  refreshTrigger?: number;
 }
 
 const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrigger }: DashboardProps) => {
@@ -133,6 +134,9 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
 
   return (
     <div className="space-y-6">
+      {/* Health Alerts - Show at the top */}
+      <HealthAlerts />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
