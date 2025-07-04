@@ -31,6 +31,10 @@ interface ColumnMapping {
   [internalField: string]: string;
 }
 
+interface CSVUploadStepsProps {
+  onUploadSuccess?: () => void;
+}
+
 const REQUIRED_FIELDS = [
   { key: 'date', label: 'Date', type: 'date' },
   { key: 'mood', label: 'Mood (1-10)', type: 'number' },
@@ -41,7 +45,7 @@ const REQUIRED_FIELDS = [
   { key: 'water_intake', label: 'Water Intake (glasses)', type: 'number' }
 ];
 
-const CSVUploadSteps = () => {
+const CSVUploadSteps = ({ onUploadSuccess }: CSVUploadStepsProps) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
@@ -359,6 +363,11 @@ const CSVUploadSteps = () => {
       });
       
       setCurrentStep(5);
+      
+      // Call the success callback to refresh the dashboard
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
     } catch (error: any) {
       console.error('Upload failed:', error);
       toast({

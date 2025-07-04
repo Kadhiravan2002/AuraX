@@ -6,7 +6,11 @@ import { AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CSVUploadSteps from './csv/CSVUploadSteps';
 
-const CSVUpload = () => {
+interface CSVUploadProps {
+  onUploadSuccess?: () => void;
+}
+
+const CSVUpload = ({ onUploadSuccess }: CSVUploadProps) => {
   const { checkFeatureAccess, getUpgradeMessage } = usePremiumFeatures();
   const navigate = useNavigate();
 
@@ -33,7 +37,7 @@ const CSVUpload = () => {
     );
   }
 
-  return <CSVUploadSteps />;
+  return <CSVUploadSteps onUploadSuccess={onUploadSuccess} />;
 };
 
 export default CSVUpload;

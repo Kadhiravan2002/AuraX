@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,9 +22,10 @@ interface DashboardProps {
   onStartCSVUpload?: () => void;
   onStartManualEntry?: () => void;
   userName?: string;
+  refreshTrigger?: number; // Add refresh trigger prop
 }
 
-const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: DashboardProps) => {
+const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrigger }: DashboardProps) => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
   const [isNewUser, setIsNewUser] = useState(false);
@@ -37,6 +37,8 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: Dashboard
     
     try {
       setLoading(true);
+      console.log('Loading health data for user:', user.id);
+      
       const { data, error } = await supabase
         .from('health_data')
         .select('*')
@@ -53,6 +55,8 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: Dashboard
         return;
       }
 
+      console.log('Loaded health data:', data);
+
       // Transform the data to match the expected format
       const transformedData = data.map(item => ({
         date: item.date,
@@ -64,6 +68,7 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: Dashboard
         mood: item.mood ? getMoodText(item.mood) : 'Normal'
       }));
 
+      console.log('Transformed health data:', transformedData);
       setHealthData(transformedData);
       setIsNewUser(transformedData.length === 0);
     } catch (error) {
@@ -94,6 +99,14 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName }: Dashboard
       loadHealthData();
     }
   }, [user]);
+
+  // Add effect to refresh data when refreshTrigger changes
+  useEffect(() => {
+    if (user && refreshTrigger) {
+      console.log('Refreshing dashboard data due to trigger:', refreshTrigger);
+      loadHealthData();
+    }
+  }, [refreshTrigger, user]);
 
   // Show loading state
   if (loading) {

@@ -17,6 +17,7 @@ const Index = () => {
   const { isPremium, checkFeatureAccess, hasWhitelistAccess, getPremiumAccessType } = usePremiumFeatures();
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<'dashboard' | 'log' | 'csv'>('dashboard');
+  const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
 
   // Show loading while checking authentication
   if (loading) {
@@ -63,6 +64,12 @@ const Index = () => {
 
   const handleStartManualEntry = () => {
     setCurrentView('log');
+  };
+
+  const handleDataUploadSuccess = () => {
+    console.log('Data upload successful, refreshing dashboard');
+    setDashboardRefreshTrigger(prev => prev + 1);
+    setCurrentView('dashboard');
   };
 
   const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
@@ -171,10 +178,15 @@ const Index = () => {
             onStartCSVUpload={handleStartCSVUpload}
             onStartManualEntry={handleStartManualEntry}
             userName={userName}
+            refreshTrigger={dashboardRefreshTrigger}
           />
         )}
-        {currentView === 'log' && <HealthLogForm />}
-        {currentView === 'csv' && <CSVUpload />}
+        {currentView === 'log' && (
+          <HealthLogForm onDataSaved={handleDataUploadSuccess} />
+        )}
+        {currentView === 'csv' && (
+          <CSVUpload onUploadSuccess={handleDataUploadSuccess} />
+        )}
       </main>
     </div>
   );
