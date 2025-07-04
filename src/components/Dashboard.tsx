@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import HealthChart from './HealthChart';
@@ -8,6 +9,7 @@ import MLSuggestions from './MLSuggestions';
 import NewUserWelcome from './NewUserWelcome';
 import HealthAlerts from './HealthAlerts';
 import { toast } from '@/hooks/use-toast';
+import { Play } from 'lucide-react';
 
 interface HealthData {
   date: string;
@@ -31,6 +33,7 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
   const [isNewUser, setIsNewUser] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { user } = useAuth();
 
   const loadHealthData = async () => {
@@ -95,6 +98,45 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
     return moodMap[moodValue] || 'Normal';
   };
 
+  const triggerHealthAlertsAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      console.log('Manually triggering health alerts analysis...');
+      
+      const { data, error } = await supabase.functions.invoke('trigger-health-alerts', {
+        body: { manual_trigger: true }
+      });
+
+      if (error) {
+        console.error('Error triggering health alerts:', error);
+        toast({
+          title: "Error",
+          description: "Failed to run health alerts analysis",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Health alerts analysis result:', data);
+      toast({
+        title: "Analysis Complete",
+        description: "Health alerts analysis has been completed. Check for any new alerts above.",
+      });
+
+      // Refresh the page to show any new alerts
+      window.location.reload();
+    } catch (error) {
+      console.error('Error in triggerHealthAlertsAnalysis:', error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger health alerts analysis",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       loadHealthData();
@@ -144,6 +186,16 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
           <p className="text-gray-600">Track your wellness journey with personalized insights</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={triggerHealthAlertsAnalysis}
+            disabled={isAnalyzing}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Play className="w-4 h-4" />
+            {isAnalyzing ? 'Analyzing...' : 'Run Health Analysis'}
+          </Button>
           <button
             onClick={() => setTimeRange('week')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

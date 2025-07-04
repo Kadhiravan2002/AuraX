@@ -1,7 +1,8 @@
 
-import { AlertTriangle, X, Moon, Brain } from 'lucide-react';
+import { AlertTriangle, X, Moon, Brain, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useHealthAlerts } from '@/hooks/useHealthAlerts';
 
 const HealthAlerts = () => {
@@ -13,10 +14,6 @@ const HealthAlerts = () => {
         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
       </div>
     );
-  }
-
-  if (alerts.length === 0) {
-    return null;
   }
 
   const getAlertIcon = (alertType: string) => {
@@ -40,6 +37,25 @@ const HealthAlerts = () => {
         return 'border-yellow-200 bg-yellow-50 text-yellow-800';
     }
   };
+
+  // Show fallback message if no alerts
+  if (alerts.length === 0) {
+    return (
+      <Card className="border-green-200 bg-green-50">
+        <CardContent className="p-4">
+          <div className="flex items-center text-green-700">
+            <CheckCircle className="h-5 w-5 mr-3" />
+            <div>
+              <h3 className="font-medium">No current health warnings</h3>
+              <p className="text-sm text-green-600 mt-1">
+                Your recent health patterns look good! Keep up the great work.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-3 mb-6">

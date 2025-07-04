@@ -139,6 +139,8 @@ serve(async (req) => {
       }
 
       console.log(`Successfully inserted/updated ${alertsToInsert.length} alerts`);
+    } else {
+      console.log('No health alerts triggered - all users have good health patterns');
     }
 
     return new Response(
