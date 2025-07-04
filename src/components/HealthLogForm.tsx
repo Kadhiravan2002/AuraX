@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 
-const HealthLogForm = () => {
+interface HealthLogFormProps {
+  onDataSaved?: () => void;
+}
+
+const HealthLogForm = ({ onDataSaved }: HealthLogFormProps) => {
   const [formData, setFormData] = useState({
     sleep: '',
     water: '',
@@ -77,6 +80,11 @@ const HealthLogForm = () => {
         mood: '3',
         energy: '5'
       });
+
+      // Call the callback if provided
+      if (onDataSaved) {
+        onDataSaved();
+      }
 
       // Trigger a refresh of the dashboard data
       window.dispatchEvent(new CustomEvent('healthDataUpdated'));
