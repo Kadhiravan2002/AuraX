@@ -29,6 +29,12 @@ port = 54322
 [functions.health-alerts-analyzer]
 verify_jwt = false
 
+[functions.setup-health-alerts-cron]
+verify_jwt = false
+
+[functions.trigger-health-alerts]
+verify_jwt = false
+
 [functions.create-checkout]
 verify_jwt = false
 

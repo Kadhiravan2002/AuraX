@@ -34,6 +34,7 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
   const [isNewUser, setIsNewUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSettingUpCron, setIsSettingUpCron] = useState(false);
   const { user } = useAuth();
 
   const loadHealthData = async () => {
@@ -137,6 +138,42 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
     }
   };
 
+  const setupDailyHealthAlerts = async () => {
+    setIsSettingUpCron(true);
+    try {
+      console.log('Setting up daily health alerts automation...');
+      
+      const { data, error } = await supabase.functions.invoke('setup-health-alerts-cron', {
+        body: { setup_cron: true }
+      });
+
+      if (error) {
+        console.error('Error setting up cron job:', error);
+        toast({
+          title: "Error",
+          description: "Failed to set up daily health alerts automation",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Daily health alerts setup result:', data);
+      toast({
+        title: "Automation Enabled",
+        description: "Daily health alerts will now run automatically at 8 AM UTC every day",
+      });
+    } catch (error) {
+      console.error('Error in setupDailyHealthAlerts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to set up daily automation",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSettingUpCron(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       loadHealthData();
@@ -195,6 +232,16 @@ const Dashboard = ({ onStartCSVUpload, onStartManualEntry, userName, refreshTrig
           >
             <Play className="w-4 h-4" />
             {isAnalyzing ? 'Analyzing...' : 'Run Health Analysis'}
+          </Button>
+          <Button
+            onClick={setupDailyHealthAlerts}
+            disabled={isSettingUpCron}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            📅
+            {isSettingUpCron ? 'Setting up...' : 'Enable Daily Alerts'}
           </Button>
           <button
             onClick={() => setTimeRange('week')}
