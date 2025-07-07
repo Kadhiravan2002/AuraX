@@ -136,6 +136,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     );
   }
 
+  // Convert the latest health data to the expected format
+  const latestHealthData = healthData.length > 0 ? {
+    date: healthData[0].date,
+    sleep: healthData[0].sleep_hours || 0,
+    water: healthData[0].water_intake || 0,
+    steps: healthData[0].exercise_minutes ? healthData[0].exercise_minutes * 100 : 0, // Convert minutes to approximate steps
+    calories: 2000, // Default value since we don't have this field
+    stress: healthData[0].stress_level || 0,
+    mood: healthData[0].mood === 1 ? 'Sad' : healthData[0].mood === 2 ? 'Normal' : healthData[0].mood === 3 ? 'Happy' : 'Normal'
+  } : null;
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -187,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <HealthScore healthData={healthData} />
+            <HealthScore data={latestHealthData} />
           </CardContent>
         </Card>
 
@@ -199,7 +210,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">Active</div>
             <p className="text-xs text-muted-foreground">
-              {checkFeatureAccess('aiSuggestions') ? 'Premium insights enabled' : 'Basic insights'}
+              {checkFeatureAccess('advancedAnalytics') ? 'Premium insights enabled' : 'Basic insights'}
             </p>
           </CardContent>
         </Card>
@@ -209,8 +220,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <HealthChart data={healthData} />
-          {checkFeatureAccess('aiSuggestions') && (
-            <MLSuggestions healthData={healthData} />
+          {checkFeatureAccess('advancedAnalytics') && latestHealthData && (
+            <MLSuggestions data={latestHealthData} />
           )}
         </div>
         
